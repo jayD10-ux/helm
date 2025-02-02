@@ -59,7 +59,7 @@ const MainDashboard = () => {
 
     // Use environment variable for client ID
     const clientId = 'your-github-client-id'; // This will be replaced with the actual client ID
-    const redirectUri = window.location.origin;
+    const redirectUri = 'https://lovable.dev/projects/3a9e893b-bee0-4d2d-bb59-a02f2c1a867a'; // Updated to use full project URL
     const scope = 'repo user';
     
     const authUrl = `https://github.com/login/oauth/authorize?client_id=${clientId}&redirect_uri=${redirectUri}&scope=${scope}`;
