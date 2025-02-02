@@ -150,13 +150,14 @@ const MainDashboard = () => {
       console.log('Setting return URL:', returnUrl);
       localStorage.setItem('googleOAuthReturnTo', returnUrl);
 
-      // Construct the Google OAuth URL
+      // Construct the Google OAuth URL with state parameter
       const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?` +
         `client_id=${configData.clientId}&` +
         `redirect_uri=${encodeURIComponent(configData.redirectUri)}&` +
         `response_type=code&` +
         `scope=${encodeURIComponent(configData.scopes)}&` +
         `access_type=offline&` +
+        `state=google&` +
         `prompt=consent`;
       
       console.log('Full Google auth URL:', authUrl);
