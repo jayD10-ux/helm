@@ -1,11 +1,14 @@
-import { BarChart, Users, DollarSign, Calendar, Github, Mail, MessageSquare } from "lucide-react";
+import { BarChart, Users, DollarSign, Calendar, Github, Mail, MessageSquare, LogOut } from "lucide-react";
 import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
+import { useNavigate } from "react-router-dom";
 
 const MainDashboard = () => {
   const { toast } = useToast();
+  const navigate = useNavigate();
 
-  // Placeholder data - will be replaced with real API data
   const stats = [
     { title: "Revenue", value: "$24,000", icon: DollarSign, change: "+12%" },
     { title: "Active Users", value: "1,200", icon: Users, change: "+8%" },
@@ -26,9 +29,28 @@ const MainDashboard = () => {
     });
   };
 
+  const handleLogout = async () => {
+    try {
+      await supabase.auth.signOut();
+      navigate("/auth");
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: "Failed to log out. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
   return (
     <div className="h-full w-full p-4 animate-fade-in">
-      <h1 className="text-2xl font-semibold mb-6">Dashboard</h1>
+      <div className="flex justify-between items-center mb-6">
+        <h1 className="text-2xl font-semibold">Dashboard</h1>
+        <Button onClick={handleLogout} variant="outline" size="sm">
+          <LogOut className="w-4 h-4 mr-2" />
+          Logout
+        </Button>
+      </div>
       
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
         {stats.map((stat) => (
