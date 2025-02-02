@@ -4,10 +4,33 @@ import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
+
+interface Integration {
+  id: string;
+  provider: string;
+  access_token: string | null;
+}
 
 const MainDashboard = () => {
   const { toast } = useToast();
   const navigate = useNavigate();
+
+  const { data: integrations, isLoading: isLoadingIntegrations } = useQuery({
+    queryKey: ['integrations'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('integrations')
+        .select('*');
+      
+      if (error) {
+        console.error('Error fetching integrations:', error);
+        throw error;
+      }
+      
+      return data as Integration[];
+    }
+  });
 
   const stats = [
     { title: "Revenue", value: "$24,000", icon: DollarSign, change: "+12%" },
@@ -16,13 +39,14 @@ const MainDashboard = () => {
     { title: "Growth", value: "18%", icon: BarChart, change: "+2%" },
   ];
 
-  const integrations = [
-    { title: "Gmail", icon: Mail, status: "Not Connected" },
-    { title: "Slack", icon: MessageSquare, status: "Not Connected" },
-    { title: "GitHub", icon: Github, status: "Not Connected" },
-  ];
+  const getIntegrationStatus = (provider: string) => {
+    if (isLoadingIntegrations) return "Loading...";
+    const integration = integrations?.find(i => i.provider.toLowerCase() === provider.toLowerCase());
+    return integration?.access_token ? "Connected" : "Not Connected";
+  };
 
-  const handleConnect = (service: string) => {
+  const handleConnect = async (service: string) => {
+    // For now, just show a toast. We'll implement OAuth flow next
     toast({
       title: "Integration Required",
       description: `Please connect to ${service} to enable this feature.`,
@@ -41,6 +65,12 @@ const MainDashboard = () => {
       });
     }
   };
+
+  const integrationsList = [
+    { title: "Gmail", icon: Mail, provider: "gmail" },
+    { title: "Slack", icon: MessageSquare, provider: "slack" },
+    { title: "GitHub", icon: Github, provider: "github" },
+  ];
 
   return (
     <div className="h-full w-full p-4 animate-fade-in">
@@ -69,7 +99,7 @@ const MainDashboard = () => {
 
       <h2 className="text-xl font-semibold mb-4">Integrations</h2>
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
-        {integrations.map((integration) => (
+        {integrationsList.map((integration) => (
           <Card 
             key={integration.title}
             className="p-6 hover:shadow-lg transition-shadow duration-200 cursor-pointer"
@@ -79,7 +109,13 @@ const MainDashboard = () => {
               <integration.icon className="w-6 h-6 text-muted-foreground" />
               <div>
                 <h3 className="font-medium">{integration.title}</h3>
-                <p className="text-sm text-muted-foreground">{integration.status}</p>
+                <p className={`text-sm ${
+                  getIntegrationStatus(integration.provider) === "Connected" 
+                    ? "text-green-500" 
+                    : "text-muted-foreground"
+                }`}>
+                  {getIntegrationStatus(integration.provider)}
+                </p>
               </div>
             </div>
           </Card>
