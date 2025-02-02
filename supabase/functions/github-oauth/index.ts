@@ -13,13 +13,18 @@ serve(async (req) => {
   }
 
   try {
+    console.log('Starting GitHub OAuth token exchange...');
+    
     const { code } = await req.json()
     
     if (!code) {
+      console.error('No code provided in request');
       throw new Error('No code provided')
     }
 
-    // Exchange code for access token
+    console.log('Exchanging code for access token...');
+    
+    // Exchange code for access token with detailed logging
     const tokenResponse = await fetch('https://github.com/login/oauth/access_token', {
       method: 'POST',
       headers: {
@@ -33,21 +38,39 @@ serve(async (req) => {
       }),
     })
 
+    console.log('Token response status:', tokenResponse.status);
+    
     const tokenData = await tokenResponse.json()
     
     if (tokenData.error) {
-      throw new Error(`GitHub OAuth error: ${tokenData.error_description}`)
+      console.error('GitHub OAuth error:', tokenData.error, tokenData.error_description);
+      throw new Error(`GitHub OAuth error: ${tokenData.error_description || tokenData.error}`)
     }
 
+    if (!tokenData.access_token) {
+      console.error('No access token received:', tokenData);
+      throw new Error('No access token received from GitHub')
+    }
+
+    console.log('Successfully received access token');
+
     // Get user info from GitHub
+    console.log('Fetching user info from GitHub...');
     const userResponse = await fetch('https://api.github.com/user', {
       headers: {
         'Authorization': `Bearer ${tokenData.access_token}`,
         'Accept': 'application/vnd.github.v3+json',
+        'User-Agent': 'Lovable-App',
       },
     })
 
+    if (!userResponse.ok) {
+      console.error('Failed to fetch GitHub user:', userResponse.status);
+      throw new Error('Failed to fetch GitHub user information')
+    }
+
     const userData = await userResponse.json()
+    console.log('Successfully fetched GitHub user info');
 
     // Initialize Supabase client
     const supabaseClient = createClient(
@@ -58,12 +81,18 @@ serve(async (req) => {
     // Get user ID from auth header
     const authHeader = req.headers.get('authorization')?.split(' ')[1]
     if (!authHeader) {
+      console.error('No authorization header provided');
       throw new Error('No authorization header')
     }
 
+    console.log('Getting Supabase user...');
     const { data: { user }, error: userError } = await supabaseClient.auth.getUser(authHeader)
-    if (userError) throw userError
+    if (userError) {
+      console.error('Failed to get Supabase user:', userError);
+      throw userError;
+    }
 
+    console.log('Storing integration data...');
     // Store integration data
     const { error: integrationError } = await supabaseClient
       .from('integrations')
@@ -77,10 +106,20 @@ serve(async (req) => {
         onConflict: 'user_id,provider'
       })
 
-    if (integrationError) throw integrationError
+    if (integrationError) {
+      console.error('Failed to store integration:', integrationError);
+      throw integrationError;
+    }
 
+    console.log('GitHub OAuth process completed successfully');
     return new Response(
-      JSON.stringify({ success: true }),
+      JSON.stringify({ 
+        success: true,
+        user: {
+          login: userData.login,
+          avatar_url: userData.avatar_url
+        }
+      }),
       { 
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         status: 200,
@@ -88,9 +127,12 @@ serve(async (req) => {
     )
 
   } catch (error) {
-    console.error('Error:', error.message)
+    console.error('Error in GitHub OAuth process:', error.message);
     return new Response(
-      JSON.stringify({ error: error.message }),
+      JSON.stringify({ 
+        error: error.message,
+        detail: 'Failed to complete GitHub authentication'
+      }),
       { 
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         status: 400,
