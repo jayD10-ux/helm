@@ -21,7 +21,9 @@
 
         if (error) {
             console.error('GitHub OAuth error:', error, error_description);
-            window.location.href = '/?error=' + encodeURIComponent(error_description || error);
+            const errorMessage = error_description || error;
+            console.log('Redirecting to error page with message:', errorMessage);
+            window.location.href = `/?error=${encodeURIComponent(errorMessage)}`;
         } else if (code) {
             // Get the return URL from localStorage
             const returnUrl = localStorage.getItem('githubOAuthReturnTo') || '/';
@@ -32,7 +34,10 @@
             
             // Redirect back to the app with the code
             console.log('Redirecting back to app with code');
-            window.location.href = `${returnUrl}${returnUrl.includes('?') ? '&' : '?'}github_code=${code}`;
+            const separator = returnUrl.includes('?') ? '&' : '?';
+            const redirectUrl = `${returnUrl}${separator}github_code=${code}`;
+            console.log('Final redirect URL:', redirectUrl);
+            window.location.href = redirectUrl;
         } else {
             console.error('No code or error received from GitHub');
             window.location.href = '/?error=No+authorization+code+received';

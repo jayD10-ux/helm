@@ -59,7 +59,6 @@ const MainDashboard = () => {
 
     try {
       console.log('Starting GitHub OAuth process...');
-      console.log('Current origin:', window.location.origin);
       
       const { data: configData, error: configError } = await supabase.functions.invoke('get-github-config');
       
@@ -73,30 +72,31 @@ const MainDashboard = () => {
         return;
       }
 
-      console.log('Config received:', configData);
-      
-      if (!configData.clientId) {
-        console.error('No client ID in config response');
+      if (!configData?.clientId || !configData?.redirectUri) {
+        console.error('Invalid config data:', configData);
         toast({
           title: "Configuration Error",
-          description: "GitHub Client ID not found. Please check the configuration.",
+          description: "Invalid GitHub configuration. Please check the setup.",
           variant: "destructive",
         });
         return;
       }
+
+      console.log('Config received:', {
+        clientId: configData.clientId ? 'present' : 'missing',
+        redirectUri: configData.redirectUri
+      });
 
       // Store the current URL in localStorage
       const returnUrl = window.location.href;
       console.log('Setting return URL:', returnUrl);
       localStorage.setItem('githubOAuthReturnTo', returnUrl);
 
-      // Construct the GitHub OAuth URL
-      const redirectUri = `${window.location.origin}/oauth-callback.html`;
-      console.log('Redirect URI:', redirectUri);
+      // Use the redirect URI from the config
       const scope = 'repo user';
-      const authUrl = `https://github.com/login/oauth/authorize?client_id=${configData.clientId}&redirect_uri=${redirectUri}&scope=${scope}`;
+      const authUrl = `https://github.com/login/oauth/authorize?client_id=${configData.clientId}&redirect_uri=${encodeURIComponent(configData.redirectUri)}&scope=${scope}`;
       
-      console.log('Redirecting to GitHub...');
+      console.log('Redirecting to GitHub with URI:', configData.redirectUri);
       window.location.href = authUrl;
 
     } catch (error) {
