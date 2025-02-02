@@ -1,7 +1,28 @@
-import { MessageSquare } from "lucide-react";
+import { MessageSquare, Mail, Github } from "lucide-react";
 import { Card } from "@/components/ui/card";
 
 const MessagesPanel = () => {
+  const messages = [
+    {
+      id: 1,
+      platform: "Gmail",
+      icon: Mail,
+      message: "Connect your Gmail account to see emails here",
+    },
+    {
+      id: 2,
+      platform: "Slack",
+      icon: MessageSquare,
+      message: "Connect Slack to see your messages and channels",
+    },
+    {
+      id: 3,
+      platform: "GitHub",
+      icon: Github,
+      message: "Connect GitHub to see your notifications and updates",
+    }
+  ];
+
   return (
     <div className="h-full w-full p-4 animate-fade-in">
       <div className="flex items-center justify-between mb-6">
@@ -9,20 +30,17 @@ const MessagesPanel = () => {
         <MessageSquare className="w-5 h-5 text-muted-foreground" />
       </div>
       <div className="space-y-4">
-        {[1, 2, 3].map((i) => (
-          <Card key={i} className="p-4 hover:shadow-lg transition-shadow duration-200 cursor-pointer">
+        {messages.map((msg) => (
+          <Card key={msg.id} className="p-4 hover:shadow-lg transition-shadow duration-200 cursor-pointer">
             <div className="flex items-start space-x-4">
-              <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center">
-                <span className="text-sm font-medium">JD</span>
+              <div className="mt-1">
+                <msg.icon className="w-5 h-5 text-muted-foreground" />
               </div>
               <div className="flex-1">
-                <h3 className="font-medium">John Doe</h3>
+                <h3 className="font-medium">{msg.platform}</h3>
                 <p className="text-sm text-muted-foreground line-clamp-2">
-                  This is a placeholder message that will be replaced with actual content from various sources.
+                  {msg.message}
                 </p>
-                <span className="text-xs text-muted-foreground mt-2 block">
-                  5m ago
-                </span>
               </div>
             </div>
           </Card>
