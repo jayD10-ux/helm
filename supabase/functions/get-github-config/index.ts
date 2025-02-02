@@ -6,31 +6,39 @@ const corsHeaders = {
 }
 
 serve(async (req) => {
+  // Handle CORS
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders })
   }
 
   try {
     const clientId = Deno.env.get('GITHUB_CLIENT_ID')
+    console.log('Retrieved GitHub Client ID:', clientId ? 'Found' : 'Not Found')
+    
     if (!clientId) {
-      throw new Error('GitHub client ID not configured')
+      throw new Error('GitHub Client ID not configured')
     }
 
     return new Response(
       JSON.stringify({ 
         clientId,
+        status: 'success'
       }),
       { 
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 200,
+        status: 200 
       },
     )
   } catch (error) {
+    console.error('Error in get-github-config:', error.message)
     return new Response(
-      JSON.stringify({ error: error.message }),
+      JSON.stringify({ 
+        error: error.message,
+        status: 'error'
+      }),
       { 
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 400,
+        status: 500
       },
     )
   }
