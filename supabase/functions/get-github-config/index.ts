@@ -5,46 +5,6 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
-// Helper function to safely parse URLs
-const parseUrl = (url: string): URL | null => {
-  try {
-    return new URL(url);
-  } catch {
-    return null;
-  }
-};
-
-// Updated to use proper URL parsing for origin validation
-const isAllowedOrigin = (origin: string | null): boolean => {
-  console.log('Validating origin:', origin);
-  
-  if (!origin) {
-    console.log('No origin provided');
-    return false;
-  }
-
-  const parsedUrl = parseUrl(origin);
-  if (!parsedUrl) {
-    console.log('Invalid URL format:', origin);
-    return false;
-  }
-
-  // Local development URLs
-  if (parsedUrl.hostname === 'localhost') {
-    console.log('Localhost origin accepted:', origin);
-    return true;
-  }
-
-  // Preview URLs
-  if (parsedUrl.hostname.endsWith('lovable.app') || parsedUrl.hostname.endsWith('lovableproject.com')) {
-    console.log('Preview domain accepted:', origin);
-    return true;
-  }
-
-  console.log('Origin not allowed:', origin);
-  return false;
-}
-
 serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
@@ -52,59 +12,74 @@ serve(async (req) => {
   }
 
   try {
-    console.log('Fetching GitHub config...')
-    const clientId = Deno.env.get('GITHUB_CLIENT_ID')
-    console.log('Client ID available:', !!clientId)
-    
-    if (!clientId) {
-      console.error('GITHUB_CLIENT_ID not found in environment variables')
-      throw new Error('GitHub Client ID not configured')
-    }
+    console.log('Starting GitHub config retrieval...');
 
-    // Get and validate the origin
-    const origin = req.headers.get('origin')
-    console.log('Request origin:', origin)
+    // Get the request origin
+    const origin = req.headers.get('origin');
+    console.log('Request origin:', origin);
 
-    if (!isAllowedOrigin(origin)) {
-      console.error('Invalid origin:', origin)
-      throw new Error(origin 
-        ? `Invalid origin: ${origin}. Must be from localhost, lovable.app, or lovableproject.com domain.`
-        : 'Origin header is required'
+    // Validate origin
+    const allowedDomains = [
+      'localhost',
+      'lovable.app',
+      'lovableproject.com'
+    ];
+
+    const isValidOrigin = origin ? (
+      allowedDomains.some(domain => 
+        origin.includes(domain) || 
+        origin.endsWith('.' + domain)
       )
+    ) : false;
+
+    console.log('Origin validation:', { isValidOrigin, origin });
+
+    if (!isValidOrigin) {
+      console.error('Invalid origin:', origin);
+      throw new Error(`Invalid origin: ${origin}. Must be from localhost, lovable.app, or lovableproject.com domain.`);
     }
 
-    // Construct the redirect URI
-    const redirectUri = `${origin}/oauth-callback.html`
-    console.log('Constructed redirect URI:', redirectUri)
-    console.log('IMPORTANT: This redirect URI must be registered in GitHub OAuth app settings')
+    const clientId = Deno.env.get('GITHUB_CLIENT_ID');
+    if (!clientId) {
+      console.error('GitHub client ID not configured');
+      throw new Error('GitHub client ID not configured');
+    }
+
+    // For security, we construct the redirect URI based on the request origin
+    let redirectUri: string;
+    if (origin?.includes('localhost')) {
+      redirectUri = 'http://localhost:5173/oauth-callback.html';
+    } else {
+      // For production, use the request origin
+      redirectUri = `${origin}/oauth-callback.html`;
+    }
+
+    console.log('Config retrieved successfully:', {
+      clientId: clientId ? 'present' : 'missing',
+      redirectUri
+    });
 
     return new Response(
       JSON.stringify({
         clientId,
-        redirectUri,
-        message: 'GitHub config retrieved successfully'
+        redirectUri
       }),
       { 
-        headers: { 
-          ...corsHeaders,
-          'Content-Type': 'application/json'
-        }
-      }
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 200 
+      },
     )
   } catch (error) {
-    console.error('Error in get-github-config:', error.message)
+    console.error('Error in get-github-config:', error.message);
     return new Response(
-      JSON.stringify({ 
+      JSON.stringify({
         error: error.message,
         detail: 'Failed to retrieve GitHub configuration'
       }),
       { 
-        headers: { 
-          ...corsHeaders,
-          'Content-Type': 'application/json'
-        },
-        status: 500
-      }
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 400
+      },
     )
   }
 })
