@@ -1,11 +1,22 @@
-// Update this page (the content is just a fallback if you fail to update the page)
+import NotificationPanel from "@/components/dashboard/NotificationPanel";
+import MainDashboard from "@/components/dashboard/MainDashboard";
+import MessagesPanel from "@/components/dashboard/MessagesPanel";
 
 const Index = () => {
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-100">
-      <div className="text-center">
-        <h1 className="text-4xl font-bold mb-4">Welcome to Your Blank App</h1>
-        <p className="text-xl text-gray-600">Start building your amazing project here!</p>
+    <div className="min-h-screen bg-background">
+      <div className="container mx-auto py-8">
+        <div className="grid grid-cols-12 gap-6 h-[calc(100vh-4rem)]">
+          <div className="col-span-12 lg:col-span-3 bg-card rounded-lg shadow-lg overflow-y-auto">
+            <NotificationPanel />
+          </div>
+          <div className="col-span-12 lg:col-span-6 bg-card rounded-lg shadow-lg overflow-y-auto">
+            <MainDashboard />
+          </div>
+          <div className="col-span-12 lg:col-span-3 bg-card rounded-lg shadow-lg overflow-y-auto">
+            <MessagesPanel />
+          </div>
+        </div>
       </div>
     </div>
   );
