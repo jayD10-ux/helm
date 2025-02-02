@@ -17,7 +17,7 @@ const MainDashboard = () => {
   const { toast } = useToast();
   const navigate = useNavigate();
 
-  const { data: integrations, isLoading: isLoadingIntegrations, refetch: refetchIntegrations } = useQuery({
+  const { data: integrations, isLoading: isLoadingIntegrations } = useQuery({
     queryKey: ['integrations'],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -44,13 +44,6 @@ const MainDashboard = () => {
     if (isLoadingIntegrations) return "Loading...";
     const integration = integrations?.find(i => i.provider.toLowerCase() === provider.toLowerCase());
     return integration?.access_token ? "Connected" : "Not Connected";
-  };
-
-  // Get the base redirect URI without query parameters
-  const getRedirectUri = () => {
-    const currentUrl = window.location.href;
-    const baseUrl = currentUrl.split('?')[0].split('#')[0]; // Remove query params and hash
-    return baseUrl.replace(/\/$/, '') + '/oauth-callback.html';
   };
 
   const handleGitHubOAuth = async () => {
@@ -80,7 +73,7 @@ const MainDashboard = () => {
         return;
       }
 
-      if (!configData?.clientId) {
+      if (!configData?.clientId || !configData?.redirectUri) {
         console.error('Invalid config data:', configData);
         toast({
           title: "Configuration Error",
@@ -95,16 +88,13 @@ const MainDashboard = () => {
       console.log('Setting return URL:', returnUrl);
       localStorage.setItem('githubOAuthReturnTo', returnUrl);
 
-      // Get the redirect URI
-      const redirectUri = getRedirectUri();
-      console.log('Using redirect URI:', redirectUri);
-
       // Construct the GitHub OAuth URL
       const scope = 'repo user';
       const authUrl = `https://github.com/login/oauth/authorize?` +
         `client_id=${configData.clientId}&` +
-        `redirect_uri=${encodeURIComponent(redirectUri)}&` +
-        `scope=${encodeURIComponent(scope)}`;
+        `redirect_uri=${encodeURIComponent(configData.redirectUri)}&` +
+        `scope=${encodeURIComponent(scope)}&` +
+        `state=github`;
       
       console.log('Full GitHub auth URL:', authUrl);
       window.location.href = authUrl;
@@ -146,7 +136,7 @@ const MainDashboard = () => {
         return;
       }
 
-      if (!configData?.clientId) {
+      if (!configData?.clientId || !configData?.redirectUri) {
         console.error('Invalid config data:', configData);
         toast({
           title: "Configuration Error",
@@ -161,14 +151,10 @@ const MainDashboard = () => {
       console.log('Setting return URL:', returnUrl);
       localStorage.setItem('googleOAuthReturnTo', returnUrl);
 
-      // Get the redirect URI
-      const redirectUri = getRedirectUri();
-      console.log('Using redirect URI:', redirectUri);
-
       // Construct the Google OAuth URL with state parameter
       const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?` +
         `client_id=${configData.clientId}&` +
-        `redirect_uri=${encodeURIComponent(redirectUri)}&` +
+        `redirect_uri=${encodeURIComponent(configData.redirectUri)}&` +
         `response_type=code&` +
         `scope=${encodeURIComponent(configData.scopes)}&` +
         `access_type=offline&` +

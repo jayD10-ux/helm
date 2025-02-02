@@ -13,6 +13,10 @@ serve(async (req) => {
   }
 
   try {
+    // Get the origin from request headers
+    const origin = req.headers.get('origin') || '';
+    console.log('Request origin:', origin);
+
     // Using only basic profile scopes that don't require verification
     const scopes = [
       'https://www.googleapis.com/auth/userinfo.email',
@@ -20,8 +24,9 @@ serve(async (req) => {
       'openid'
     ];
 
-    // Use the same oauth-callback.html page for both GitHub and Google OAuth
-    const redirectUri = `${req.headers.get('origin')}/oauth-callback.html`;
+    // Construct the redirect URI
+    const redirectUri = `${origin}/oauth-callback.html`;
+    console.log('Constructed redirect URI:', redirectUri);
 
     return new Response(
       JSON.stringify({
