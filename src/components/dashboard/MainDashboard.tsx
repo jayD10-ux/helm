@@ -5,6 +5,7 @@ import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
+import GitHubPanel from "./GitHubPanel";
 
 interface Integration {
   id: string;
@@ -167,35 +168,44 @@ const MainDashboard = () => {
         ))}
       </div>
 
-      <h2 className="text-xl font-semibold mb-4">Integrations</h2>
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
-        {integrationsList.map((integration) => (
-          <Card 
-            key={integration.title}
-            className="p-6 hover:shadow-lg transition-shadow duration-200 cursor-pointer"
-            onClick={() => handleConnect(integration.title)}
-          >
-            <div className="flex items-center space-x-4">
-              <integration.icon className="w-6 h-6 text-muted-foreground" />
-              <div>
-                <h3 className="font-medium">{integration.title}</h3>
-                <div className="flex items-center space-x-2">
-                  {isLoadingIntegrations ? (
-                    <Loader className="w-4 h-4 animate-spin text-muted-foreground" />
-                  ) : (
-                    <p className={`text-sm ${
-                      getIntegrationStatus(integration.provider) === "Connected" 
-                        ? "text-green-500" 
-                        : "text-muted-foreground"
-                    }`}>
-                      {getIntegrationStatus(integration.provider)}
-                    </p>
-                  )}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
+        <div>
+          <h2 className="text-xl font-semibold mb-4">Integrations</h2>
+          <div className="grid grid-cols-1 gap-4">
+            {integrationsList.map((integration) => (
+              <Card 
+                key={integration.title}
+                className="p-6 hover:shadow-lg transition-shadow duration-200 cursor-pointer"
+                onClick={() => handleConnect(integration.title)}
+              >
+                <div className="flex items-center space-x-4">
+                  <integration.icon className="w-6 h-6 text-muted-foreground" />
+                  <div>
+                    <h3 className="font-medium">{integration.title}</h3>
+                    <div className="flex items-center space-x-2">
+                      {isLoadingIntegrations ? (
+                        <Loader className="w-4 h-4 animate-spin text-muted-foreground" />
+                      ) : (
+                        <p className={`text-sm ${
+                          getIntegrationStatus(integration.provider) === "Connected" 
+                            ? "text-green-500" 
+                            : "text-muted-foreground"
+                        }`}>
+                          {getIntegrationStatus(integration.provider)}
+                        </p>
+                      )}
+                    </div>
+                  </div>
                 </div>
-              </div>
-            </div>
-          </Card>
-        ))}
+              </Card>
+            ))}
+          </div>
+        </div>
+        
+        <div>
+          <h2 className="text-xl font-semibold mb-4">GitHub Activity</h2>
+          <GitHubPanel />
+        </div>
       </div>
 
       <Card className="p-6 h-[300px] flex items-center justify-center text-muted-foreground">
