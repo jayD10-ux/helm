@@ -1,4 +1,4 @@
-import { BarChart, Users, DollarSign, Calendar, Github, Mail, MessageSquare, LogOut } from "lucide-react";
+import { BarChart, Users, DollarSign, Calendar, Github, Mail, MessageSquare, LogOut, Loader } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
@@ -16,7 +16,7 @@ const MainDashboard = () => {
   const { toast } = useToast();
   const navigate = useNavigate();
 
-  const { data: integrations, isLoading: isLoadingIntegrations } = useQuery({
+  const { data: integrations, isLoading: isLoadingIntegrations, refetch: refetchIntegrations } = useQuery({
     queryKey: ['integrations'],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -45,12 +45,73 @@ const MainDashboard = () => {
     return integration?.access_token ? "Connected" : "Not Connected";
   };
 
-  const handleConnect = async (service: string) => {
-    // For now, just show a toast. We'll implement OAuth flow next
-    toast({
-      title: "Integration Required",
-      description: `Please connect to ${service} to enable this feature.`,
+  const handleGitHubOAuth = async () => {
+    const clientId = 'your-github-client-id'; // Replace with your GitHub OAuth App client ID
+    const redirectUri = window.location.origin;
+    const scope = 'repo user notifications';
+    
+    const authUrl = `https://github.com/login/oauth/authorize?client_id=${clientId}&redirect_uri=${redirectUri}&scope=${scope}`;
+    
+    // Open GitHub OAuth in a popup
+    const popup = window.open(authUrl, 'github-oauth', 'width=600,height=800');
+    
+    // Listen for the OAuth callback
+    window.addEventListener('message', async (event) => {
+      if (event.origin !== window.location.origin) return;
+      
+      if (event.data.type === 'github-oauth') {
+        const { code } = event.data;
+        
+        try {
+          const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+          if (sessionError) throw sessionError;
+
+          const response = await fetch('/functions/v1/github-oauth', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${sessionData.session?.access_token}`,
+            },
+            body: JSON.stringify({ code }),
+          });
+
+          const result = await response.json();
+          
+          if (!response.ok) {
+            throw new Error(result.error || 'Failed to connect to GitHub');
+          }
+
+          await refetchIntegrations();
+          
+          toast({
+            title: "Success",
+            description: "Successfully connected to GitHub",
+          });
+        } catch (error) {
+          console.error('GitHub OAuth error:', error);
+          toast({
+            title: "Error",
+            description: "Failed to connect to GitHub. Please try again.",
+            variant: "destructive",
+          });
+        } finally {
+          popup?.close();
+        }
+      }
     });
+  };
+
+  const handleConnect = async (service: string) => {
+    switch (service.toLowerCase()) {
+      case 'github':
+        await handleGitHubOAuth();
+        break;
+      default:
+        toast({
+          title: "Coming Soon",
+          description: `${service} integration will be available soon.`,
+        });
+    }
   };
 
   const handleLogout = async () => {
@@ -109,13 +170,19 @@ const MainDashboard = () => {
               <integration.icon className="w-6 h-6 text-muted-foreground" />
               <div>
                 <h3 className="font-medium">{integration.title}</h3>
-                <p className={`text-sm ${
-                  getIntegrationStatus(integration.provider) === "Connected" 
-                    ? "text-green-500" 
-                    : "text-muted-foreground"
-                }`}>
-                  {getIntegrationStatus(integration.provider)}
-                </p>
+                <div className="flex items-center space-x-2">
+                  {isLoadingIntegrations ? (
+                    <Loader className="w-4 h-4 animate-spin text-muted-foreground" />
+                  ) : (
+                    <p className={`text-sm ${
+                      getIntegrationStatus(integration.provider) === "Connected" 
+                        ? "text-green-500" 
+                        : "text-muted-foreground"
+                    }`}>
+                      {getIntegrationStatus(integration.provider)}
+                    </p>
+                  )}
+                </div>
               </div>
             </div>
           </Card>
