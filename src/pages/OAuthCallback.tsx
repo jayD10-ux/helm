@@ -24,6 +24,13 @@ const OAuthCallback = () => {
       try {
         console.log(`Processing ${provider} OAuth callback...`);
         
+        // Get the current session to get the user ID
+        const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+        
+        if (sessionError || !sessionData.session?.user?.id) {
+          throw new Error("Authentication required");
+        }
+
         const { data, error: functionError } = await supabase.functions.invoke(
           `${provider}-oauth`,
           {
@@ -42,19 +49,21 @@ const OAuthCallback = () => {
           throw new Error("No access token received");
         }
 
-        // Store the integration in the database
+        // Store the integration in the database with user_id
         const { error: dbError } = await supabase
           .from('integrations')
           .upsert({
             provider,
             access_token: data.access_token,
             refresh_token: data.refresh_token,
-            expires_at: data.expires_at
+            expires_at: data.expires_at,
+            user_id: sessionData.session.user.id
           }, {
-            onConflict: 'provider'
+            onConflict: 'provider,user_id'
           });
 
         if (dbError) {
+          console.error('Database error:', dbError);
           throw dbError;
         }
 
