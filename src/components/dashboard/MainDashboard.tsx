@@ -46,9 +46,21 @@ const MainDashboard = () => {
   };
 
   const handleGitHubOAuth = async () => {
-    const clientId = 'your-github-client-id'; // Replace with your GitHub OAuth App client ID
+    const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+    if (sessionError) {
+      console.error('Session error:', sessionError);
+      toast({
+        title: "Error",
+        description: "Please log in to connect GitHub.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Use environment variable for client ID
+    const clientId = 'your-github-client-id'; // This will be replaced with the actual client ID
     const redirectUri = window.location.origin;
-    const scope = 'repo user notifications';
+    const scope = 'repo user';
     
     const authUrl = `https://github.com/login/oauth/authorize?client_id=${clientId}&redirect_uri=${redirectUri}&scope=${scope}`;
     
@@ -66,19 +78,12 @@ const MainDashboard = () => {
           const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
           if (sessionError) throw sessionError;
 
-          const response = await fetch('/functions/v1/github-oauth', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${sessionData.session?.access_token}`,
-            },
-            body: JSON.stringify({ code }),
+          const response = await supabase.functions.invoke('github-oauth', {
+            body: { code },
           });
 
-          const result = await response.json();
-          
-          if (!response.ok) {
-            throw new Error(result.error || 'Failed to connect to GitHub');
+          if (response.error) {
+            throw new Error(response.error.message || 'Failed to connect to GitHub');
           }
 
           await refetchIntegrations();
