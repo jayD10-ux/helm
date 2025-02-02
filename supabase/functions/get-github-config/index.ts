@@ -5,16 +5,43 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
-// Updated to use pattern matching for preview URLs
+// Helper function to safely parse URLs
+const parseUrl = (url: string): URL | null => {
+  try {
+    return new URL(url);
+  } catch {
+    return null;
+  }
+};
+
+// Updated to use proper URL parsing for origin validation
 const isAllowedOrigin = (origin: string | null): boolean => {
-  if (!origin) return false;
+  console.log('Validating origin:', origin);
+  
+  if (!origin) {
+    console.log('No origin provided');
+    return false;
+  }
+
+  const parsedUrl = parseUrl(origin);
+  if (!parsedUrl) {
+    console.log('Invalid URL format:', origin);
+    return false;
+  }
 
   // Local development URLs
-  if (origin.startsWith('http://localhost:')) return true;
+  if (parsedUrl.hostname === 'localhost') {
+    console.log('Localhost origin accepted:', origin);
+    return true;
+  }
 
   // Preview URLs
-  if (origin.includes('lovable.app')) return true;
+  if (parsedUrl.hostname.endsWith('lovable.app')) {
+    console.log('Lovable.app domain accepted:', origin);
+    return true;
+  }
 
+  console.log('Origin not allowed:', origin);
   return false;
 }
 
@@ -40,7 +67,10 @@ serve(async (req) => {
 
     if (!isAllowedOrigin(origin)) {
       console.error('Invalid origin:', origin)
-      throw new Error('Invalid origin. Must be from localhost or lovable.app domain.')
+      throw new Error(origin 
+        ? `Invalid origin: ${origin}. Must be from localhost or lovable.app domain.`
+        : 'Origin header is required'
+      )
     }
 
     // Construct the redirect URI
