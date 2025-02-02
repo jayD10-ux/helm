@@ -20,8 +20,8 @@ serve(async (req) => {
       'https://www.googleapis.com/auth/userinfo.profile',
     ];
 
-    // The redirect URI should be your application's domain
-    const redirectUri = `${req.headers.get('origin')}/auth/callback`;
+    // Use the same oauth-callback.html page for both GitHub and Google OAuth
+    const redirectUri = `${req.headers.get('origin')}/oauth-callback.html`;
 
     return new Response(
       JSON.stringify({
