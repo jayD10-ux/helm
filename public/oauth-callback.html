@@ -1,40 +1,27 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>OAuth Callback</title>
+    <title>OAuth Callback</title>
 </head>
 <body>
-  <script>
-    // Get the code from URL
-    const urlParams = new URLSearchParams(window.location.search);
-    const code = urlParams.get('code');
-    const error = urlParams.get('error');
-    const error_description = urlParams.get('error_description');
-    
-    if (error) {
-      console.error('GitHub OAuth error:', error, error_description);
-      window.opener.postMessage({
-        type: 'github-oauth-error',
-        error: error,
-        description: error_description
-      }, window.location.origin);
-    } else if (code) {
-      console.log('Received GitHub code, sending to parent window');
-      window.opener.postMessage({
-        type: 'github-oauth',
-        code: code
-      }, window.location.origin);
-    } else {
-      console.error('No code or error received from GitHub');
-      window.opener.postMessage({
-        type: 'github-oauth-error',
-        error: 'no_code',
-        description: 'No authorization code received from GitHub'
-      }, window.location.origin);
-    }
-    
-    // Close this window
-    window.close();
-  </script>
+    <script>
+        // Get the code from URL parameters
+        const urlParams = new URLSearchParams(window.location.search);
+        const code = urlParams.get('code');
+        
+        if (code) {
+            // Get the return URL from localStorage
+            const returnUrl = localStorage.getItem('githubOAuthReturnTo') || '/';
+            
+            // Remove the stored return URL
+            localStorage.removeItem('githubOAuthReturnTo');
+            
+            // Redirect back to the app with the code
+            window.location.href = `${returnUrl}?github_code=${code}`;
+        } else {
+            console.error('No code received from GitHub');
+            window.location.href = '/';
+        }
+    </script>
 </body>
 </html>

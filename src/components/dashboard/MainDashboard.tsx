@@ -57,9 +57,6 @@ const MainDashboard = () => {
       return;
     }
 
-    const redirectUri = `${window.location.origin}/oauth-callback.html`;
-    const scope = 'repo user';
-    
     try {
       console.log('Fetching GitHub config...');
       const { data: configData, error: configError } = await supabase.functions.invoke('get-github-config');
@@ -75,67 +72,17 @@ const MainDashboard = () => {
         throw new Error('GitHub Client ID not found in configuration');
       }
 
+      // Store the current URL in localStorage to redirect back after OAuth
+      localStorage.setItem('githubOAuthReturnTo', window.location.href);
+
+      // Construct the GitHub OAuth URL
+      const redirectUri = `${window.location.origin}/oauth-callback.html`;
+      const scope = 'repo user';
       const authUrl = `https://github.com/login/oauth/authorize?client_id=${configData.clientId}&redirect_uri=${redirectUri}&scope=${scope}`;
-      console.log('Auth URL:', authUrl);
       
-      // Open GitHub OAuth in a popup
-      const popup = window.open(authUrl, 'github-oauth', 'width=600,height=800');
-      
-      if (!popup) {
-        throw new Error('Failed to open popup window. Please allow popups for this site.');
-      }
+      // Redirect to GitHub OAuth
+      window.location.href = authUrl;
 
-      // Listen for the OAuth callback
-      window.addEventListener('message', async (event) => {
-        console.log('Received message:', event.origin, window.location.origin);
-        
-        if (event.origin !== window.location.origin) {
-          console.log('Origin mismatch, ignoring message');
-          return;
-        }
-        
-        if (event.data.type === 'github-oauth') {
-          console.log('Received GitHub OAuth callback');
-          const { code } = event.data;
-          
-          if (!code) {
-            console.error('No code received from GitHub');
-            throw new Error('No authorization code received from GitHub');
-          }
-
-          try {
-            const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
-            if (sessionError) throw sessionError;
-
-            console.log('Exchanging code for token...');
-            const response = await supabase.functions.invoke('github-oauth', {
-              body: { code },
-            });
-
-            console.log('Token exchange response:', response);
-
-            if (response.error) {
-              throw new Error(response.error.message || 'Failed to connect to GitHub');
-            }
-
-            await refetchIntegrations();
-            
-            toast({
-              title: "Success",
-              description: "Successfully connected to GitHub",
-            });
-          } catch (error) {
-            console.error('GitHub OAuth error:', error);
-            toast({
-              title: "Error",
-              description: "Failed to connect to GitHub. Please try again.",
-              variant: "destructive",
-            });
-          } finally {
-            popup?.close();
-          }
-        }
-      });
     } catch (error) {
       console.error('GitHub OAuth setup error:', error);
       toast({
