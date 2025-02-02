@@ -5,11 +5,18 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
-const ALLOWED_ORIGINS = [
-  'https://preview--cockpit-flux-dashboard.lovable.app',
-  'http://localhost:5173',
-  'http://localhost:3000'
-];
+// Updated to use pattern matching for preview URLs
+const isAllowedOrigin = (origin: string | null): boolean => {
+  if (!origin) return false;
+
+  // Local development URLs
+  if (origin.startsWith('http://localhost:')) return true;
+
+  // Preview URLs
+  if (origin.includes('lovable.app')) return true;
+
+  return false;
+}
 
 serve(async (req) => {
   // Handle CORS preflight requests
@@ -31,29 +38,21 @@ serve(async (req) => {
     const origin = req.headers.get('origin')
     console.log('Request origin:', origin)
 
-    if (!origin) {
-      console.error('No origin header found')
-      throw new Error('Origin header is required')
-    }
-
-    if (!ALLOWED_ORIGINS.includes(origin)) {
+    if (!isAllowedOrigin(origin)) {
       console.error('Invalid origin:', origin)
-      console.error('Allowed origins:', ALLOWED_ORIGINS)
-      throw new Error('Invalid origin. Must be one of the allowed origins.')
+      throw new Error('Invalid origin. Must be from localhost or lovable.app domain.')
     }
 
     // Construct the redirect URI
     const redirectUri = `${origin}/oauth-callback.html`
     console.log('Constructed redirect URI:', redirectUri)
     console.log('IMPORTANT: This redirect URI must be registered in GitHub OAuth app settings')
-    console.log('GitHub OAuth app settings URL: https://github.com/settings/developers')
 
     return new Response(
       JSON.stringify({
         clientId,
         redirectUri,
-        message: 'GitHub config retrieved successfully',
-        allowedOrigins: ALLOWED_ORIGINS
+        message: 'GitHub config retrieved successfully'
       }),
       { 
         headers: { 
@@ -67,8 +66,7 @@ serve(async (req) => {
     return new Response(
       JSON.stringify({ 
         error: error.message,
-        detail: 'Failed to retrieve GitHub configuration',
-        allowedOrigins: ALLOWED_ORIGINS
+        detail: 'Failed to retrieve GitHub configuration'
       }),
       { 
         headers: { 
