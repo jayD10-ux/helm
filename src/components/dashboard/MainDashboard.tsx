@@ -58,36 +58,52 @@ const MainDashboard = () => {
     }
 
     try {
-      console.log('Fetching GitHub config...');
+      console.log('Starting GitHub OAuth process...');
+      console.log('Current origin:', window.location.origin);
+      
       const { data: configData, error: configError } = await supabase.functions.invoke('get-github-config');
       
       if (configError) {
         console.error('GitHub config error:', configError);
-        throw new Error('Failed to get GitHub configuration');
+        toast({
+          title: "Configuration Error",
+          description: "Failed to get GitHub configuration. Please try again.",
+          variant: "destructive",
+        });
+        return;
       }
 
       console.log('Config received:', configData);
       
       if (!configData.clientId) {
-        throw new Error('GitHub Client ID not found in configuration');
+        console.error('No client ID in config response');
+        toast({
+          title: "Configuration Error",
+          description: "GitHub Client ID not found. Please check the configuration.",
+          variant: "destructive",
+        });
+        return;
       }
 
-      // Store the current URL in localStorage to redirect back after OAuth
-      localStorage.setItem('githubOAuthReturnTo', window.location.href);
+      // Store the current URL in localStorage
+      const returnUrl = window.location.href;
+      console.log('Setting return URL:', returnUrl);
+      localStorage.setItem('githubOAuthReturnTo', returnUrl);
 
       // Construct the GitHub OAuth URL
       const redirectUri = `${window.location.origin}/oauth-callback.html`;
+      console.log('Redirect URI:', redirectUri);
       const scope = 'repo user';
       const authUrl = `https://github.com/login/oauth/authorize?client_id=${configData.clientId}&redirect_uri=${redirectUri}&scope=${scope}`;
       
-      // Redirect to GitHub OAuth
+      console.log('Redirecting to GitHub...');
       window.location.href = authUrl;
 
     } catch (error) {
       console.error('GitHub OAuth setup error:', error);
       toast({
         title: "Error",
-        description: error.message || "Failed to initialize GitHub connection. Please try again.",
+        description: "Failed to initialize GitHub connection. Please try again.",
         variant: "destructive",
       });
     }
