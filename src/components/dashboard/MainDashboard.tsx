@@ -57,53 +57,67 @@ const MainDashboard = () => {
       return;
     }
 
-    // Use environment variable for client ID
-    const clientId = 'your-github-client-id'; // This will be replaced with the actual client ID
-    const redirectUri = 'https://lovable.dev/projects/3a9e893b-bee0-4d2d-bb59-a02f2c1a867a/oauth-callback.html'; // Updated to include callback file
+    const redirectUri = 'https://lovable.dev/projects/3a9e893b-bee0-4d2d-bb59-a02f2c1a867a/oauth-callback.html';
     const scope = 'repo user';
     
-    const authUrl = `https://github.com/login/oauth/authorize?client_id=${clientId}&redirect_uri=${redirectUri}&scope=${scope}`;
-    
-    // Open GitHub OAuth in a popup
-    const popup = window.open(authUrl, 'github-oauth', 'width=600,height=800');
-    
-    // Listen for the OAuth callback
-    window.addEventListener('message', async (event) => {
-      if (event.origin !== window.location.origin) return;
+    try {
+      // Get the client ID from the edge function
+      const { data: configData, error: configError } = await supabase.functions.invoke('get-github-config');
       
-      if (event.data.type === 'github-oauth') {
-        const { code } = event.data;
-        
-        try {
-          const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
-          if (sessionError) throw sessionError;
-
-          const response = await supabase.functions.invoke('github-oauth', {
-            body: { code },
-          });
-
-          if (response.error) {
-            throw new Error(response.error.message || 'Failed to connect to GitHub');
-          }
-
-          await refetchIntegrations();
-          
-          toast({
-            title: "Success",
-            description: "Successfully connected to GitHub",
-          });
-        } catch (error) {
-          console.error('GitHub OAuth error:', error);
-          toast({
-            title: "Error",
-            description: "Failed to connect to GitHub. Please try again.",
-            variant: "destructive",
-          });
-        } finally {
-          popup?.close();
-        }
+      if (configError) {
+        throw new Error('Failed to get GitHub configuration');
       }
-    });
+
+      const authUrl = `https://github.com/login/oauth/authorize?client_id=${configData.clientId}&redirect_uri=${redirectUri}&scope=${scope}`;
+      
+      // Open GitHub OAuth in a popup
+      const popup = window.open(authUrl, 'github-oauth', 'width=600,height=800');
+      
+      // Listen for the OAuth callback
+      window.addEventListener('message', async (event) => {
+        if (event.origin !== window.location.origin) return;
+        
+        if (event.data.type === 'github-oauth') {
+          const { code } = event.data;
+          
+          try {
+            const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+            if (sessionError) throw sessionError;
+
+            const response = await supabase.functions.invoke('github-oauth', {
+              body: { code },
+            });
+
+            if (response.error) {
+              throw new Error(response.error.message || 'Failed to connect to GitHub');
+            }
+
+            await refetchIntegrations();
+            
+            toast({
+              title: "Success",
+              description: "Successfully connected to GitHub",
+            });
+          } catch (error) {
+            console.error('GitHub OAuth error:', error);
+            toast({
+              title: "Error",
+              description: "Failed to connect to GitHub. Please try again.",
+              variant: "destructive",
+            });
+          } finally {
+            popup?.close();
+          }
+        }
+      });
+    } catch (error) {
+      console.error('GitHub OAuth setup error:', error);
+      toast({
+        title: "Error",
+        description: "Failed to initialize GitHub connection. Please try again.",
+        variant: "destructive",
+      });
+    }
   };
 
   const handleConnect = async (service: string) => {
