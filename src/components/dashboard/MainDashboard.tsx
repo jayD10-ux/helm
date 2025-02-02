@@ -46,28 +46,28 @@ const MainDashboard = () => {
     return integration?.access_token ? "Connected" : "Not Connected";
   };
 
-  const handleGitHubOAuth = async () => {
+  const handleOAuth = async (provider: string) => {
     const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
     if (sessionError) {
       console.error('Session error:', sessionError);
       toast({
         title: "Error",
-        description: "Please log in to connect GitHub.",
+        description: `Please log in to connect ${provider}.`,
         variant: "destructive",
       });
       return;
     }
 
     try {
-      console.log('Starting GitHub OAuth process...');
+      console.log(`Starting ${provider} OAuth process...`);
       
-      const { data: configData, error: configError } = await supabase.functions.invoke('get-github-config');
+      const { data: configData, error: configError } = await supabase.functions.invoke(`get-${provider}-config`);
       
       if (configError) {
-        console.error('GitHub config error:', configError);
+        console.error(`${provider} config error:`, configError);
         toast({
           title: "Configuration Error",
-          description: "Failed to get GitHub configuration. Please try again.",
+          description: `Failed to get ${provider} configuration. Please try again.`,
           variant: "destructive",
         });
         return;
@@ -77,116 +77,42 @@ const MainDashboard = () => {
         console.error('Invalid config data:', configData);
         toast({
           title: "Configuration Error",
-          description: "Invalid GitHub configuration. Please check the setup.",
+          description: `Invalid ${provider} configuration. Please check the setup.`,
           variant: "destructive",
         });
         return;
       }
 
-      // Store the current URL in localStorage
-      const returnUrl = window.location.href;
-      console.log('Setting return URL:', returnUrl);
-      localStorage.setItem('githubOAuthReturnTo', returnUrl);
-
-      // Construct the GitHub OAuth URL
-      const scope = 'repo user';
-      const authUrl = `https://github.com/login/oauth/authorize?` +
-        `client_id=${configData.clientId}&` +
-        `redirect_uri=${encodeURIComponent(configData.redirectUri)}&` +
-        `scope=${encodeURIComponent(scope)}&` +
-        `state=github`;
+      // Construct the OAuth URL based on the provider
+      let authUrl = '';
+      if (provider.toLowerCase() === 'github') {
+        const scope = 'repo user';
+        authUrl = `https://github.com/login/oauth/authorize?` +
+          `client_id=${configData.clientId}&` +
+          `redirect_uri=${encodeURIComponent(`${window.location.origin}/oauth/callback`)}&` +
+          `scope=${encodeURIComponent(scope)}&` +
+          `state=github`;
+      } else if (provider.toLowerCase() === 'google') {
+        authUrl = `https://accounts.google.com/o/oauth2/v2/auth?` +
+          `client_id=${configData.clientId}&` +
+          `redirect_uri=${encodeURIComponent(`${window.location.origin}/oauth/callback`)}&` +
+          `response_type=code&` +
+          `scope=${encodeURIComponent(configData.scopes)}&` +
+          `access_type=offline&` +
+          `state=google&` +
+          `prompt=consent`;
+      }
       
-      console.log('Full GitHub auth URL:', authUrl);
+      console.log(`Full ${provider} auth URL:`, authUrl);
       window.location.href = authUrl;
 
     } catch (error) {
-      console.error('GitHub OAuth setup error:', error);
+      console.error(`${provider} OAuth setup error:`, error);
       toast({
         title: "Error",
-        description: "Failed to initialize GitHub connection. Please try again.",
+        description: `Failed to initialize ${provider} connection. Please try again.`,
         variant: "destructive",
       });
-    }
-  };
-
-  const handleGoogleOAuth = async () => {
-    const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
-    if (sessionError) {
-      console.error('Session error:', sessionError);
-      toast({
-        title: "Error",
-        description: "Please log in to connect Gmail.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    try {
-      console.log('Starting Google OAuth process...');
-      
-      const { data: configData, error: configError } = await supabase.functions.invoke('get-google-config');
-      
-      if (configError) {
-        console.error('Google config error:', configError);
-        toast({
-          title: "Configuration Error",
-          description: "Failed to get Google configuration. Please try again.",
-          variant: "destructive",
-        });
-        return;
-      }
-
-      if (!configData?.clientId || !configData?.redirectUri) {
-        console.error('Invalid config data:', configData);
-        toast({
-          title: "Configuration Error",
-          description: "Invalid Google configuration. Please check the setup.",
-          variant: "destructive",
-        });
-        return;
-      }
-
-      // Store the current URL in localStorage
-      const returnUrl = window.location.href;
-      console.log('Setting return URL:', returnUrl);
-      localStorage.setItem('googleOAuthReturnTo', returnUrl);
-
-      // Construct the Google OAuth URL with state parameter
-      const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?` +
-        `client_id=${configData.clientId}&` +
-        `redirect_uri=${encodeURIComponent(configData.redirectUri)}&` +
-        `response_type=code&` +
-        `scope=${encodeURIComponent(configData.scopes)}&` +
-        `access_type=offline&` +
-        `state=google&` +
-        `prompt=consent`;
-      
-      console.log('Full Google auth URL:', authUrl);
-      window.location.href = authUrl;
-
-    } catch (error) {
-      console.error('Google OAuth setup error:', error);
-      toast({
-        title: "Error",
-        description: "Failed to initialize Google connection. Please try again.",
-        variant: "destructive",
-      });
-    }
-  };
-
-  const handleConnect = async (service: string) => {
-    switch (service.toLowerCase()) {
-      case 'gmail':
-        await handleGoogleOAuth();
-        break;
-      case 'github':
-        await handleGitHubOAuth();
-        break;
-      default:
-        toast({
-          title: "Coming Soon",
-          description: `${service} integration will be available soon.`,
-        });
     }
   };
 
@@ -204,7 +130,7 @@ const MainDashboard = () => {
   };
 
   const integrationsList = [
-    { title: "Gmail", icon: Mail, provider: "gmail" },
+    { title: "Gmail", icon: Mail, provider: "google" },
     { title: "Slack", icon: MessageSquare, provider: "slack" },
     { title: "GitHub", icon: Github, provider: "github" },
   ];
@@ -242,7 +168,7 @@ const MainDashboard = () => {
               <Card 
                 key={integration.title}
                 className="p-6 hover:shadow-lg transition-shadow duration-200 cursor-pointer"
-                onClick={() => handleConnect(integration.title)}
+                onClick={() => handleOAuth(integration.provider)}
               >
                 <div className="flex items-center space-x-4">
                   <integration.icon className="w-6 h-6 text-muted-foreground" />

@@ -23,16 +23,19 @@ serve(async (req) => {
   }
 
   try {
+    console.log('Starting Google OAuth token exchange process...');
+    
     const { code, redirectUri } = await req.json();
+    console.log('Received authorization code:', code ? 'present' : 'missing');
+    console.log('Received redirect URI:', redirectUri);
     
     if (!code) {
-      throw new Error('No code provided');
+      console.error('No authorization code provided in request');
+      throw new Error('No authorization code provided');
     }
 
-    console.log('Received code:', code);
-    console.log('Redirect URI:', redirectUri);
-
     // Exchange the authorization code for tokens
+    console.log('Sending token exchange request to Google...');
     const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
       method: 'POST',
       headers: {
@@ -47,6 +50,8 @@ serve(async (req) => {
       }),
     });
 
+    console.log('Token response status:', tokenResponse.status);
+
     if (!tokenResponse.ok) {
       const errorData = await tokenResponse.text();
       console.error('Token exchange failed:', errorData);
@@ -54,7 +59,7 @@ serve(async (req) => {
     }
 
     const tokens: GoogleTokenResponse = await tokenResponse.json();
-    console.log('Received tokens successfully');
+    console.log('Successfully received tokens');
 
     // Calculate token expiration
     const expiresAt = new Date();
@@ -72,12 +77,15 @@ serve(async (req) => {
       },
     );
   } catch (error) {
-    console.error('Error in google-oauth function:', error);
+    console.error('Error in Google OAuth process:', error);
     return new Response(
-      JSON.stringify({ error: error.message }),
+      JSON.stringify({ 
+        error: error.message,
+        detail: 'Failed to complete Google authentication'
+      }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 500,
+        status: 400,
       },
     );
   }

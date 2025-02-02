@@ -15,8 +15,9 @@ serve(async (req) => {
   try {
     console.log('Starting GitHub OAuth token exchange process...');
     
-    const { code } = await req.json()
+    const { code, redirectUri } = await req.json()
     console.log('Received authorization code:', code ? 'present' : 'missing');
+    console.log('Received redirect URI:', redirectUri);
     
     if (!code) {
       console.error('No authorization code provided in request');
@@ -36,17 +37,6 @@ serve(async (req) => {
       console.error('Missing GitHub OAuth credentials');
       throw new Error('GitHub OAuth credentials not configured');
     }
-
-    // Get the origin for the redirect URI
-    const origin = req.headers.get('origin');
-    console.log('Request origin:', origin);
-
-    // Construct redirect URI based on origin
-    const redirectUri = origin?.includes('localhost') 
-      ? 'http://localhost:5173/oauth-callback.html'
-      : `${origin}/oauth-callback.html`;
-    
-    console.log('Using redirect URI:', redirectUri);
 
     // Prepare the token exchange request
     const tokenRequest = {
@@ -107,49 +97,12 @@ serve(async (req) => {
     const userData = await userResponse.json();
     console.log('Successfully fetched GitHub user info');
 
-    // Initialize Supabase client
-    const supabaseClient = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-    );
-
-    // Get user ID from auth header
-    const authHeader = req.headers.get('authorization')?.split(' ')[1];
-    if (!authHeader) {
-      console.error('No authorization header provided');
-      throw new Error('No authorization header');
-    }
-
-    console.log('Getting Supabase user...');
-    const { data: { user }, error: userError } = await supabaseClient.auth.getUser(authHeader);
-    if (userError) {
-      console.error('Failed to get Supabase user:', userError);
-      throw userError;
-    }
-
-    console.log('Storing integration data...');
-    // Store integration data
-    const { error: integrationError } = await supabaseClient
-      .from('integrations')
-      .upsert({
-        user_id: user.id,
-        provider: 'github',
-        access_token: tokenData.access_token,
-        refresh_token: tokenData.refresh_token,
-        expires_at: tokenData.expires_in ? new Date(Date.now() + tokenData.expires_in * 1000).toISOString() : null,
-      }, {
-        onConflict: 'user_id,provider'
-      });
-
-    if (integrationError) {
-      console.error('Failed to store integration:', integrationError);
-      throw integrationError;
-    }
-
     console.log('GitHub OAuth process completed successfully');
     return new Response(
       JSON.stringify({ 
-        success: true,
+        access_token: tokenData.access_token,
+        refresh_token: tokenData.refresh_token,
+        expires_at: tokenData.expires_in ? new Date(Date.now() + tokenData.expires_in * 1000).toISOString() : null,
         user: {
           login: userData.login,
           avatar_url: userData.avatar_url
