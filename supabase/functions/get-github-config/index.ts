@@ -21,10 +21,14 @@ serve(async (req) => {
       throw new Error('GitHub Client ID not configured')
     }
 
+    // Construct the redirect URI
+    const redirectUri = `${req.headers.get('origin')}/oauth-callback.html`
+    console.log('Constructed redirect URI:', redirectUri)
+
     return new Response(
       JSON.stringify({
         clientId,
-        // Don't log the actual client ID, but log that we're sending it
+        redirectUri,
         message: 'GitHub config retrieved successfully'
       }),
       { 
