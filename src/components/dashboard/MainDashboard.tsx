@@ -46,28 +46,28 @@ const MainDashboard = () => {
     return integration?.access_token ? "Connected" : "Not Connected";
   };
 
-  const handleGitHubOAuth = async () => {
+  const handleGoogleOAuth = async () => {
     const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
     if (sessionError) {
       console.error('Session error:', sessionError);
       toast({
         title: "Error",
-        description: "Please log in to connect GitHub.",
+        description: "Please log in to connect Gmail.",
         variant: "destructive",
       });
       return;
     }
 
     try {
-      console.log('Starting GitHub OAuth process...');
+      console.log('Starting Google OAuth process...');
       
-      const { data: configData, error: configError } = await supabase.functions.invoke('get-github-config');
+      const { data: configData, error: configError } = await supabase.functions.invoke('get-google-config');
       
       if (configError) {
-        console.error('GitHub config error:', configError);
+        console.error('Google config error:', configError);
         toast({
           title: "Configuration Error",
-          description: "Failed to get GitHub configuration. Please try again.",
+          description: "Failed to get Google configuration. Please try again.",
           variant: "destructive",
         });
         return;
@@ -77,35 +77,34 @@ const MainDashboard = () => {
         console.error('Invalid config data:', configData);
         toast({
           title: "Configuration Error",
-          description: "Invalid GitHub configuration. Please check the setup.",
+          description: "Invalid Google configuration. Please check the setup.",
           variant: "destructive",
         });
         return;
       }
 
-      console.log('Config received:', {
-        clientId: configData.clientId ? 'present' : 'missing',
-        redirectUri: configData.redirectUri
-      });
-
       // Store the current URL in localStorage
       const returnUrl = window.location.href;
       console.log('Setting return URL:', returnUrl);
-      localStorage.setItem('githubOAuthReturnTo', returnUrl);
+      localStorage.setItem('googleOAuthReturnTo', returnUrl);
 
-      // Construct the GitHub OAuth URL
-      const scope = 'repo user';
-      const encodedRedirectUri = encodeURIComponent(configData.redirectUri);
-      const authUrl = `https://github.com/login/oauth/authorize?client_id=${configData.clientId}&redirect_uri=${encodedRedirectUri}&scope=${scope}`;
+      // Construct the Google OAuth URL
+      const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?` +
+        `client_id=${configData.clientId}&` +
+        `redirect_uri=${encodeURIComponent(configData.redirectUri)}&` +
+        `response_type=code&` +
+        `scope=${encodeURIComponent(configData.scopes)}&` +
+        `access_type=offline&` +
+        `prompt=consent`;
       
-      console.log('Full GitHub auth URL:', authUrl);
+      console.log('Full Google auth URL:', authUrl);
       window.location.href = authUrl;
 
     } catch (error) {
-      console.error('GitHub OAuth setup error:', error);
+      console.error('Google OAuth setup error:', error);
       toast({
         title: "Error",
-        description: "Failed to initialize GitHub connection. Please try again.",
+        description: "Failed to initialize Google connection. Please try again.",
         variant: "destructive",
       });
     }
@@ -113,6 +112,9 @@ const MainDashboard = () => {
 
   const handleConnect = async (service: string) => {
     switch (service.toLowerCase()) {
+      case 'gmail':
+        await handleGoogleOAuth();
+        break;
       case 'github':
         await handleGitHubOAuth();
         break;
