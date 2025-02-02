@@ -36,8 +36,8 @@ const isAllowedOrigin = (origin: string | null): boolean => {
   }
 
   // Preview URLs
-  if (parsedUrl.hostname.endsWith('lovable.app')) {
-    console.log('Lovable.app domain accepted:', origin);
+  if (parsedUrl.hostname.endsWith('lovable.app') || parsedUrl.hostname.endsWith('lovableproject.com')) {
+    console.log('Preview domain accepted:', origin);
     return true;
   }
 
@@ -68,7 +68,7 @@ serve(async (req) => {
     if (!isAllowedOrigin(origin)) {
       console.error('Invalid origin:', origin)
       throw new Error(origin 
-        ? `Invalid origin: ${origin}. Must be from localhost or lovable.app domain.`
+        ? `Invalid origin: ${origin}. Must be from localhost, lovable.app, or lovableproject.com domain.`
         : 'Origin header is required'
       )
     }
