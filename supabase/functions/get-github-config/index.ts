@@ -21,9 +21,17 @@ serve(async (req) => {
       throw new Error('GitHub Client ID not configured')
     }
 
-    // Construct the redirect URI
-    const redirectUri = `${req.headers.get('origin')}/oauth-callback.html`
-    console.log('Constructed redirect URI:', redirectUri)
+    // Get the origin from headers
+    const origin = req.headers.get('origin')
+    console.log('Request origin:', origin)
+
+    // Construct and validate the redirect URI
+    if (!origin) {
+      throw new Error('Origin header is required')
+    }
+
+    const redirectUri = `${origin}/oauth-callback.html`
+    console.log('Full redirect URI:', redirectUri)
 
     return new Response(
       JSON.stringify({

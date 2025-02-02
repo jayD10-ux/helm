@@ -92,11 +92,12 @@ const MainDashboard = () => {
       console.log('Setting return URL:', returnUrl);
       localStorage.setItem('githubOAuthReturnTo', returnUrl);
 
-      // Use the redirect URI from the config
+      // Construct the GitHub OAuth URL
       const scope = 'repo user';
-      const authUrl = `https://github.com/login/oauth/authorize?client_id=${configData.clientId}&redirect_uri=${encodeURIComponent(configData.redirectUri)}&scope=${scope}`;
+      const encodedRedirectUri = encodeURIComponent(configData.redirectUri);
+      const authUrl = `https://github.com/login/oauth/authorize?client_id=${configData.clientId}&redirect_uri=${encodedRedirectUri}&scope=${scope}`;
       
-      console.log('Redirecting to GitHub with URI:', configData.redirectUri);
+      console.log('Full GitHub auth URL:', authUrl);
       window.location.href = authUrl;
 
     } catch (error) {
