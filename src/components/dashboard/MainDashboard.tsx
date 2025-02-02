@@ -46,6 +46,68 @@ const MainDashboard = () => {
     return integration?.access_token ? "Connected" : "Not Connected";
   };
 
+  const handleGitHubOAuth = async () => {
+    const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+    if (sessionError) {
+      console.error('Session error:', sessionError);
+      toast({
+        title: "Error",
+        description: "Please log in to connect GitHub.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      console.log('Starting GitHub OAuth process...');
+      
+      const { data: configData, error: configError } = await supabase.functions.invoke('get-github-config');
+      
+      if (configError) {
+        console.error('GitHub config error:', configError);
+        toast({
+          title: "Configuration Error",
+          description: "Failed to get GitHub configuration. Please try again.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      if (!configData?.clientId || !configData?.redirectUri) {
+        console.error('Invalid config data:', configData);
+        toast({
+          title: "Configuration Error",
+          description: "Invalid GitHub configuration. Please check the setup.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Store the current URL in localStorage
+      const returnUrl = window.location.href;
+      console.log('Setting return URL:', returnUrl);
+      localStorage.setItem('githubOAuthReturnTo', returnUrl);
+
+      // Construct the GitHub OAuth URL
+      const scope = 'repo user';
+      const authUrl = `https://github.com/login/oauth/authorize?` +
+        `client_id=${configData.clientId}&` +
+        `redirect_uri=${encodeURIComponent(configData.redirectUri)}&` +
+        `scope=${encodeURIComponent(scope)}`;
+      
+      console.log('Full GitHub auth URL:', authUrl);
+      window.location.href = authUrl;
+
+    } catch (error) {
+      console.error('GitHub OAuth setup error:', error);
+      toast({
+        title: "Error",
+        description: "Failed to initialize GitHub connection. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
   const handleGoogleOAuth = async () => {
     const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
     if (sessionError) {
