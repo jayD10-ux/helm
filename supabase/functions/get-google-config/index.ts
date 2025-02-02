@@ -13,11 +13,11 @@ serve(async (req) => {
   }
 
   try {
-    // For Gmail, we need these specific scopes
+    // Using only basic profile scopes that don't require verification
     const scopes = [
-      'https://www.googleapis.com/auth/gmail.readonly',
       'https://www.googleapis.com/auth/userinfo.email',
       'https://www.googleapis.com/auth/userinfo.profile',
+      'openid'
     ];
 
     // Use the same oauth-callback.html page for both GitHub and Google OAuth
