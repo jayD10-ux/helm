@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -11,11 +11,42 @@ const Auth = () => {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [isLogin, setIsLogin] = useState(true);
+  const [initialized, setInitialized] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
 
+  useEffect(() => {
+    const initializeAuth = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session) {
+          navigate("/");
+        }
+      } catch (error) {
+        console.error("Auth initialization error:", error);
+        toast({
+          title: "Error",
+          description: "Failed to initialize authentication. Please try again.",
+          variant: "destructive",
+        });
+      } finally {
+        setInitialized(true);
+      }
+    };
+
+    initializeAuth();
+  }, [navigate, toast]);
+
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!initialized) {
+      toast({
+        title: "Please wait",
+        description: "Authentication is still initializing...",
+      });
+      return;
+    }
+
     setLoading(true);
 
     try {
@@ -38,15 +69,26 @@ const Auth = () => {
         });
       }
     } catch (error: any) {
+      console.error("Auth error:", error);
       toast({
         title: "Error",
-        description: error.message,
+        description: error.message || "An error occurred during authentication",
         variant: "destructive",
       });
     } finally {
       setLoading(false);
     }
   };
+
+  if (!initialized) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="text-center">
+          <p className="text-muted-foreground">Initializing authentication...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
@@ -69,6 +111,7 @@ const Auth = () => {
                 onChange={(e) => setEmail(e.target.value)}
                 className="pl-10"
                 required
+                disabled={loading}
               />
             </div>
             <div className="relative">
@@ -80,6 +123,7 @@ const Auth = () => {
                 onChange={(e) => setPassword(e.target.value)}
                 className="pl-10"
                 required
+                disabled={loading}
               />
             </div>
           </div>
@@ -87,7 +131,7 @@ const Auth = () => {
           <Button
             type="submit"
             className="w-full"
-            disabled={loading}
+            disabled={loading || !initialized}
           >
             {loading ? "Loading..." : isLogin ? "Sign in" : "Sign up"}
           </Button>
@@ -98,6 +142,7 @@ const Auth = () => {
               variant="link"
               onClick={() => setIsLogin(!isLogin)}
               className="text-sm"
+              disabled={loading}
             >
               {isLogin ? "Need an account? Sign up" : "Already have an account? Sign in"}
             </Button>
