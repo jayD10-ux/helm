@@ -60,9 +60,17 @@ serve(async (req) => {
     });
 
     if (!userResponse.ok) {
-      console.error('Failed to validate Figma token:', await userResponse.text());
-      throw new Error('Invalid Figma access token');
+      const errorText = await userResponse.text();
+      console.error('Figma token validation failed:', {
+        status: userResponse.status,
+        statusText: userResponse.statusText,
+        error: errorText
+      });
+      throw new Error(`Invalid Figma access token: ${userResponse.status} - ${errorText}`);
     }
+
+    const userData = await userResponse.json();
+    console.log('Figma user validated:', userData.email);
 
     console.log('Fetching Figma user files...');
     const filesResponse = await fetch(
@@ -76,7 +84,11 @@ serve(async (req) => {
 
     if (!filesResponse.ok) {
       const errorText = await filesResponse.text();
-      console.error('Failed to fetch Figma files:', errorText);
+      console.error('Failed to fetch Figma files:', {
+        status: filesResponse.status,
+        statusText: filesResponse.statusText,
+        error: errorText
+      });
       throw new Error(`Failed to fetch Figma files: ${errorText}`);
     }
 
@@ -100,7 +112,12 @@ serve(async (req) => {
           );
 
           if (!commentsResponse.ok) {
-            console.error(`Failed to fetch comments for file ${file.key}:`, await commentsResponse.text());
+            const errorText = await commentsResponse.text();
+            console.error(`Failed to fetch comments for file ${file.key}:`, {
+              status: commentsResponse.status,
+              statusText: commentsResponse.statusText,
+              error: errorText
+            });
             return {
               ...file,
               comments: [],
@@ -108,6 +125,7 @@ serve(async (req) => {
           }
 
           const commentsData = await commentsResponse.json();
+          console.log(`Successfully fetched ${commentsData.comments?.length || 0} comments for file ${file.key}`);
           return {
             ...file,
             comments: commentsData.comments || [],
@@ -137,11 +155,17 @@ serve(async (req) => {
           );
 
           if (!thumbnailResponse.ok) {
-            console.error(`Failed to fetch thumbnail for file ${file.key}:`, await thumbnailResponse.text());
+            const errorText = await thumbnailResponse.text();
+            console.error(`Failed to fetch thumbnail for file ${file.key}:`, {
+              status: thumbnailResponse.status,
+              statusText: thumbnailResponse.statusText,
+              error: errorText
+            });
             return file;
           }
 
           const thumbnailData = await thumbnailResponse.json();
+          console.log(`Successfully fetched thumbnail for file ${file.key}`);
           return {
             ...file,
             thumbnail_url: thumbnailData.images?.[file.key],
@@ -164,7 +188,12 @@ serve(async (req) => {
       }
     );
   } catch (error) {
-    console.error('Error in fetch-figma function:', error);
+    console.error('Error in fetch-figma function:', {
+      message: error.message,
+      stack: error.stack,
+      type: error.constructor.name
+    });
+    
     return new Response(
       JSON.stringify({
         error: error.message,
