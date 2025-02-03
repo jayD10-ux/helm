@@ -42,8 +42,26 @@ serve(async (req) => {
       throw new Error('No access token provided');
     }
 
-    // Fetch Gmail messages
-    console.log('Fetching Gmail messages with access token...');
+    console.log('Starting Gmail API request with access token');
+
+    // First, validate the token by making a simple userinfo request
+    const validateResponse = await fetch(
+      'https://www.googleapis.com/oauth2/v1/userinfo',
+      {
+        headers: {
+          'Authorization': `Bearer ${access_token}`,
+        }
+      }
+    );
+
+    if (!validateResponse.ok) {
+      console.error('Token validation failed:', await validateResponse.text());
+      throw new Error('Invalid or expired access token');
+    }
+
+    console.log('Access token validated successfully');
+
+    // Fetch Gmail messages with detailed error logging
     const response = await fetch(
       'https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=10',
       {
@@ -56,36 +74,37 @@ serve(async (req) => {
 
     // Log the full response for debugging
     const responseText = await response.text();
-    console.log('Gmail API Response:', responseText);
+    console.log('Gmail API Response Status:', response.status);
+    console.log('Gmail API Response Headers:', Object.fromEntries(response.headers));
+    console.log('Gmail API Response Body:', responseText);
 
     if (!response.ok) {
-      console.error('Gmail API error status:', response.status);
-      console.error('Gmail API error response:', responseText);
-      
-      // Try to parse the error response
       let errorMessage = 'Failed to fetch Gmail messages';
       try {
         const errorData = JSON.parse(responseText);
-        errorMessage = errorData.error?.message || errorMessage;
+        console.error('Gmail API error details:', errorData);
         
-        // Check for specific error types
-        if (errorData.error?.status === 'PERMISSION_DENIED') {
-          errorMessage = 'Insufficient permissions. Please disconnect and reconnect your Gmail account with the required permissions.';
+        if (errorData.error?.code === 403) {
+          errorMessage = 'Access denied. Please ensure Gmail access is enabled for your Google account.';
+        } else if (errorData.error?.code === 401) {
+          errorMessage = 'Authentication failed. Please reconnect your Gmail account.';
         }
+        
+        throw new Error(errorMessage);
       } catch (e) {
         console.error('Error parsing Gmail API error response:', e);
+        throw new Error(errorMessage);
       }
-      
-      throw new Error(errorMessage);
     }
 
     // Parse the successful response
     const { messages } = JSON.parse(responseText);
+    console.log(`Found ${messages?.length || 0} messages`);
 
-    // Fetch details for each message
-    console.log('Fetching message details...');
+    // Fetch details for each message with improved error handling
     const messageDetails = await Promise.all(
       messages.map(async (msg: { id: string }) => {
+        console.log(`Fetching details for message ${msg.id}`);
         const msgResponse = await fetch(
           `https://gmail.googleapis.com/gmail/v1/users/me/messages/${msg.id}`,
           {
@@ -101,7 +120,9 @@ serve(async (req) => {
           return null;
         }
 
-        return msgResponse.json();
+        const messageData = await msgResponse.json();
+        console.log(`Successfully fetched details for message ${msg.id}`);
+        return messageData;
       })
     );
 
@@ -128,9 +149,9 @@ serve(async (req) => {
   } catch (error) {
     console.error('Error in fetch-gmail function:', error);
     return new Response(
-      JSON.stringify({ 
+      JSON.stringify({
         error: error.message,
-        detail: 'If this error persists, please try disconnecting and reconnecting your Gmail account.'
+        detail: 'If this error persists, please try disconnecting and reconnecting your Gmail account with full access permissions.'
       }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
