@@ -12,11 +12,14 @@ serve(async (req) => {
 
   try {
     const clientId = Deno.env.get('SLACK_CLIENT_ID');
-    const scopes = 'chat:write,channels:read,channels:history,im:history,mpim:history,groups:history';
+    // Using more basic scopes for initial setup
+    const scopes = 'chat:write,channels:read';
 
     if (!clientId) {
       throw new Error('Slack client ID not configured');
     }
+
+    console.log('Providing Slack configuration with client ID:', clientId ? 'present' : 'missing');
 
     return new Response(
       JSON.stringify({
@@ -29,6 +32,7 @@ serve(async (req) => {
       },
     )
   } catch (error) {
+    console.error('Slack configuration error:', error);
     return new Response(
       JSON.stringify({ error: error.message }),
       { 
