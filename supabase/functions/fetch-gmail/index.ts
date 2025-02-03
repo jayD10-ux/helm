@@ -36,15 +36,31 @@ serve(async (req) => {
 
     console.log('User authenticated:', user.id)
 
-    // Get the access token from request body
-    const { access_token } = await req.json()
+    // Log the entire request for debugging
+    const requestBody = await req.json()
+    console.log('Full request body:', JSON.stringify(requestBody, null, 2))
+
+    // Validate request body structure
+    if (!requestBody || typeof requestBody !== 'object') {
+      throw new Error('Invalid request body format')
+    }
+
+    const { access_token } = requestBody
+    
+    // Detailed token validation logging
     if (!access_token) {
+      console.error('Missing access_token in request body')
       throw new Error('No access token provided')
     }
 
-    // Log token details for debugging
-    console.log('Processing access token:', {
+    if (typeof access_token !== 'string') {
+      console.error('Invalid access_token type:', typeof access_token)
+      throw new Error('Access token must be a string')
+    }
+
+    console.log('Access token validation:', {
       length: access_token.length,
+      type: typeof access_token,
       sample: `${access_token.substring(0, 5)}...${access_token.substring(access_token.length - 5)}`
     })
 
@@ -65,7 +81,8 @@ serve(async (req) => {
       const errorText = await validateResponse.text()
       console.error('Token validation failed:', {
         status: validateResponse.status,
-        text: errorText
+        text: errorText,
+        requestHeaders: headers
       })
       throw new Error('Invalid access token. Please reconnect your Gmail account.')
     }
@@ -84,7 +101,8 @@ serve(async (req) => {
       const errorText = await response.text()
       console.error('Gmail API error:', {
         status: response.status,
-        text: errorText
+        text: errorText,
+        requestHeaders: headers
       })
       throw new Error('Failed to fetch Gmail messages. Please try reconnecting your Gmail account.')
     }
@@ -134,7 +152,7 @@ serve(async (req) => {
     return new Response(
       JSON.stringify({
         error: error.message,
-        detail: 'Please try disconnecting and reconnecting your Gmail account.'
+        detail: 'Please check the logs and try reconnecting your Gmail account.'
       }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
