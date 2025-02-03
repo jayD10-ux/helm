@@ -1,4 +1,4 @@
-import { Bell, Mail, MessageSquare, Github } from "lucide-react";
+import { Bell, Mail, MessageSquare, Github, Paintbrush } from "lucide-react";
 import { Card } from "@/components/ui/card";
 
 const NotificationPanel = () => {
@@ -26,6 +26,14 @@ const NotificationPanel = () => {
       icon: Github,
       time: "10m ago",
       type: "github"
+    },
+    {
+      id: 4,
+      title: "Figma Comments",
+      message: "Connect Figma to see design feedback",
+      icon: Paintbrush,
+      time: "15m ago",
+      type: "figma"
     }
   ];
 

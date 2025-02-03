@@ -1,4 +1,4 @@
-import { BarChart, Users, DollarSign, Github, Mail, MessageSquare, LogOut } from "lucide-react";
+import { BarChart, Users, DollarSign, Github, Mail, MessageSquare, LogOut, Paintbrush } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
@@ -146,6 +146,13 @@ const MainDashboard = () => {
           `redirect_uri=${encodeURIComponent(redirectUri)}&` +
           `scope=${encodeURIComponent(configData.scopes)}&` +
           `state=slack`;
+      } else if (provider.toLowerCase() === 'figma') {
+        authUrl = `https://www.figma.com/oauth?` +
+          `client_id=${configData.clientId}&` +
+          `redirect_uri=${encodeURIComponent(redirectUri)}&` +
+          `response_type=code&` +
+          `scope=${encodeURIComponent(configData.scopes)}&` +
+          `state=figma`;
       }
       
       console.log(`Full ${provider} auth URL:`, authUrl);
@@ -178,6 +185,7 @@ const MainDashboard = () => {
     { title: "Gmail", icon: Mail, provider: "google" },
     { title: "Slack", icon: MessageSquare, provider: "slack" },
     { title: "GitHub", icon: Github, provider: "github" },
+    { title: "Figma", icon: Paintbrush, provider: "figma" },
   ];
 
   return (
