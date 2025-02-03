@@ -44,6 +44,14 @@ const MainDashboard = () => {
   const getIntegrationStatus = (provider: string) => {
     if (isLoadingIntegrations) return "Loading...";
     const integration = integrations?.find(i => i.provider.toLowerCase() === provider.toLowerCase());
+    
+    // Add additional validation for Gmail integration
+    if (provider.toLowerCase() === 'google' && integration) {
+      if (!integration.access_token) {
+        return "Token Missing";
+      }
+    }
+    
     return integration?.access_token ? "Connected" : "Not Connected";
   };
 
@@ -196,7 +204,9 @@ const MainDashboard = () => {
           <h2 className="text-xl font-semibold mb-4">Integrations</h2>
           <div className="grid grid-cols-1 gap-4">
             {integrationsList.map((integration) => {
-              const isConnected = getIntegrationStatus(integration.provider) === "Connected";
+              const status = getIntegrationStatus(integration.provider);
+              const isConnected = status === "Connected";
+              const hasError = status === "Token Missing";
               
               return (
                 <Card 
@@ -214,10 +224,12 @@ const MainDashboard = () => {
                           ) : (
                             <p className={`text-sm ${
                               isConnected 
-                                ? "text-green-500" 
-                                : "text-muted-foreground"
+                                ? "text-green-500"
+                                : hasError
+                                  ? "text-red-500"
+                                  : "text-muted-foreground"
                             }`}>
-                              {getIntegrationStatus(integration.provider)}
+                              {status}
                             </p>
                           )}
                         </div>
