@@ -62,32 +62,21 @@ serve(async (req) => {
     
     console.log('User authenticated:', user.id)
 
-    // Get the GitHub integration for this user
-    console.log('Fetching GitHub integration...')
-    const { data: integration, error: integrationError } = await supabase
-      .from('integrations')
-      .select('*')
-      .eq('provider', 'github')
-      .eq('user_id', user.id)
-      .maybeSingle()
-
-    if (integrationError) {
-      console.error('Integration fetch error:', integrationError)
-      throw integrationError
+    // Get the GitHub access token from request body
+    const { access_token } = await req.json()
+    
+    if (!access_token) {
+      console.error('No GitHub access token provided in request body')
+      throw new Error('No GitHub access token provided')
     }
     
-    if (!integration?.access_token) {
-      console.error('No GitHub access token found')
-      throw new Error('No GitHub access token found')
-    }
-    
-    console.log('GitHub integration found with access token')
+    console.log('GitHub access token received')
 
     // Fetch GitHub user data
     console.log('Fetching GitHub user data...')
     const userResponse = await fetch('https://api.github.com/user', {
       headers: {
-        'Authorization': `Bearer ${integration.access_token}`,
+        'Authorization': `Bearer ${access_token}`,
         'Accept': 'application/vnd.github.v3+json',
         'User-Agent': 'Supabase Edge Function'
       }
@@ -109,7 +98,7 @@ serve(async (req) => {
     console.log('Fetching GitHub repositories...')
     const reposResponse = await fetch('https://api.github.com/user/repos?sort=updated&per_page=5', {
       headers: {
-        'Authorization': `Bearer ${integration.access_token}`,
+        'Authorization': `Bearer ${access_token}`,
         'Accept': 'application/vnd.github.v3+json',
         'User-Agent': 'Supabase Edge Function'
       }
