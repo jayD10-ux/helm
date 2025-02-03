@@ -11,7 +11,8 @@ import IntegrationCard from "./IntegrationCard";
 interface Integration {
   id: string;
   provider: string;
-  access_token: string | null;
+  webhook_url: string | null;
+  template_id: string | null;
 }
 
 const MainDashboard = () => {
@@ -45,14 +46,36 @@ const MainDashboard = () => {
   const getIntegrationStatus = (provider: string) => {
     if (isLoadingIntegrations) return "Loading...";
     const integration = integrations?.find(i => i.provider.toLowerCase() === provider.toLowerCase());
-    
-    if (provider.toLowerCase() === 'google' && integration) {
-      if (!integration.access_token) {
-        return "Token Missing";
-      }
+    return integration?.webhook_url ? "Connected" : "Not Connected";
+  };
+
+  const handleConnect = async (provider: string, webhookUrl: string) => {
+    try {
+      const { error } = await supabase
+        .from('integrations')
+        .insert([
+          {
+            provider: provider.toLowerCase(),
+            webhook_url: webhookUrl,
+          }
+        ]);
+
+      if (error) throw error;
+
+      await queryClient.invalidateQueries({ queryKey: ['integrations'] });
+      
+      toast({
+        title: "Success",
+        description: `${provider} connected successfully`,
+      });
+    } catch (error: any) {
+      console.error('Connect error:', error);
+      toast({
+        title: "Error",
+        description: `Failed to connect ${provider}. Please try again.`,
+        variant: "destructive",
+      });
     }
-    
-    return integration?.access_token ? "Connected" : "Not Connected";
   };
 
   const handleDisconnect = async (provider: string) => {
@@ -80,94 +103,6 @@ const MainDashboard = () => {
     }
   };
 
-  const handleOAuth = async (provider: string) => {
-    const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
-    if (sessionError) {
-      console.error('Session error:', sessionError);
-      toast({
-        title: "Error",
-        description: `Please log in to connect ${provider}.`,
-        variant: "destructive",
-      });
-      return;
-    }
-
-    try {
-      console.log(`Starting ${provider} OAuth process...`);
-      
-      const { data: configData, error: configError } = await supabase.functions.invoke(`get-${provider}-config`);
-      
-      if (configError) {
-        console.error(`${provider} config error:`, configError);
-        toast({
-          title: "Configuration Error",
-          description: `Failed to get ${provider} configuration. Please try again.`,
-          variant: "destructive",
-        });
-        return;
-      }
-
-      if (!configData?.clientId) {
-        console.error('Invalid config data:', configData);
-        toast({
-          title: "Configuration Error",
-          description: `Invalid ${provider} configuration. Please check the setup.`,
-          variant: "destructive",
-        });
-        return;
-      }
-
-      // Store the current URL to return to after OAuth
-      localStorage.setItem(`${provider}OAuthReturnTo`, window.location.pathname);
-
-      // Construct the OAuth URL based on the provider
-      let authUrl = '';
-      const redirectUri = `${window.location.origin}/oauth/callback`;
-      
-      if (provider.toLowerCase() === 'github') {
-        const scope = 'repo user';
-        authUrl = `https://github.com/login/oauth/authorize?` +
-          `client_id=${configData.clientId}&` +
-          `redirect_uri=${encodeURIComponent(redirectUri)}&` +
-          `scope=${encodeURIComponent(scope)}&` +
-          `state=github`;
-      } else if (provider.toLowerCase() === 'google') {
-        authUrl = `https://accounts.google.com/o/oauth2/v2/auth?` +
-          `client_id=${configData.clientId}&` +
-          `redirect_uri=${encodeURIComponent(redirectUri)}&` +
-          `response_type=code&` +
-          `scope=${encodeURIComponent(configData.scopes)}&` +
-          `access_type=offline&` +
-          `state=google&` +
-          `prompt=consent`;
-      } else if (provider.toLowerCase() === 'slack') {
-        authUrl = `https://slack.com/oauth/v2/authorize?` +
-          `client_id=${configData.clientId}&` +
-          `redirect_uri=${encodeURIComponent(redirectUri)}&` +
-          `scope=${encodeURIComponent(configData.scopes)}&` +
-          `state=slack`;
-      } else if (provider.toLowerCase() === 'figma') {
-        authUrl = `https://www.figma.com/oauth?` +
-          `client_id=${configData.clientId}&` +
-          `redirect_uri=${encodeURIComponent(redirectUri)}&` +
-          `response_type=code&` +
-          `scope=${encodeURIComponent(configData.scopes)}&` +
-          `state=figma`;
-      }
-      
-      console.log(`Full ${provider} auth URL:`, authUrl);
-      window.location.href = authUrl;
-
-    } catch (error) {
-      console.error(`${provider} OAuth setup error:`, error);
-      toast({
-        title: "Error",
-        description: `Failed to initialize ${provider} connection. Please try again.`,
-        variant: "destructive",
-      });
-    }
-  };
-
   const handleLogout = async () => {
     try {
       await supabase.auth.signOut();
@@ -182,10 +117,30 @@ const MainDashboard = () => {
   };
 
   const integrationsList = [
-    { title: "Gmail", icon: Mail, provider: "google" },
-    { title: "Slack", icon: MessageSquare, provider: "slack" },
-    { title: "GitHub", icon: Github, provider: "github" },
-    { title: "Figma", icon: Paintbrush, provider: "figma" },
+    { 
+      title: "Gmail", 
+      icon: Mail, 
+      provider: "google",
+      templateUrl: "https://zapier.com/apps/gmail/integrations"
+    },
+    { 
+      title: "Slack", 
+      icon: MessageSquare, 
+      provider: "slack",
+      templateUrl: "https://zapier.com/apps/slack/integrations"
+    },
+    { 
+      title: "GitHub", 
+      icon: Github, 
+      provider: "github",
+      templateUrl: "https://zapier.com/apps/github/integrations"
+    },
+    { 
+      title: "Figma", 
+      icon: Paintbrush, 
+      provider: "figma",
+      templateUrl: "https://zapier.com/apps/figma/integrations"
+    },
   ];
 
   return (
@@ -220,7 +175,6 @@ const MainDashboard = () => {
             {integrationsList.map((integration) => {
               const status = getIntegrationStatus(integration.provider);
               const isConnected = status === "Connected";
-              const hasError = status === "Token Missing";
               
               return (
                 <IntegrationCard
@@ -231,8 +185,8 @@ const MainDashboard = () => {
                   status={status}
                   isLoading={isLoadingIntegrations}
                   isConnected={isConnected}
-                  hasError={hasError}
-                  onConnect={() => handleOAuth(integration.provider)}
+                  templateUrl={integration.templateUrl}
+                  onConnect={(webhookUrl) => handleConnect(integration.provider, webhookUrl)}
                   onDisconnect={() => handleDisconnect(integration.provider)}
                 />
               );

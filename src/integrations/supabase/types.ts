@@ -11,34 +11,31 @@ export type Database = {
     Tables: {
       integrations: {
         Row: {
-          access_token: string | null
           created_at: string
-          expires_at: string | null
           id: string
           provider: string
-          refresh_token: string | null
+          template_id: string | null
           updated_at: string
           user_id: string
+          webhook_url: string | null
         }
         Insert: {
-          access_token?: string | null
           created_at?: string
-          expires_at?: string | null
           id?: string
           provider: string
-          refresh_token?: string | null
+          template_id?: string | null
           updated_at?: string
           user_id: string
+          webhook_url?: string | null
         }
         Update: {
-          access_token?: string | null
           created_at?: string
-          expires_at?: string | null
           id?: string
           provider?: string
-          refresh_token?: string | null
+          template_id?: string | null
           updated_at?: string
           user_id?: string
+          webhook_url?: string | null
         }
         Relationships: [
           {
