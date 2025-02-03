@@ -9,7 +9,10 @@ const corsHeaders = {
 }
 
 serve(async (req) => {
+  console.log('Received Slack OAuth request');
+
   if (req.method === 'OPTIONS') {
+    console.log('Handling CORS preflight request');
     return new Response(null, { headers: corsHeaders });
   }
 
@@ -17,16 +20,25 @@ serve(async (req) => {
     console.log('Starting Slack OAuth token exchange process...');
     
     const { code, redirectUri } = await req.json();
-    console.log('Received authorization code:', code ? 'present' : 'missing');
+    console.log('Received authorization code:', code ? 'present (length: ' + code.length + ')' : 'missing');
     console.log('Received redirect URI:', redirectUri);
     
     if (!code) {
       throw new Error('No authorization code provided');
     }
 
+    if (!SLACK_CLIENT_ID || !SLACK_CLIENT_SECRET) {
+      console.error('Missing required environment variables:', {
+        hasClientId: !!SLACK_CLIENT_ID,
+        hasClientSecret: !!SLACK_CLIENT_SECRET
+      });
+      throw new Error('Missing required Slack credentials');
+    }
+
     const cleanRedirectUri = new URL(redirectUri).toString().replace(/\/$/, '');
+    console.log('Cleaned redirect URI:', cleanRedirectUri);
     
-    console.log('Exchanging code for tokens...');
+    console.log('Preparing token exchange request to Slack...');
     const tokenResponse = await fetch('https://slack.com/api/oauth.v2.access', {
       method: 'POST',
       headers: {
@@ -42,9 +54,14 @@ serve(async (req) => {
 
     const tokens = await tokenResponse.json();
     console.log('Token response status:', tokenResponse.status);
+    console.log('Token response type:', tokens.token_type || 'not provided');
 
     if (!tokenResponse.ok || !tokens.access_token) {
-      console.error('Token exchange failed:', tokens);
+      console.error('Token exchange failed:', {
+        status: tokenResponse.status,
+        error: tokens.error,
+        warning: tokens.warning
+      });
       throw new Error(tokens.error || 'Failed to exchange code for access token');
     }
 
@@ -65,11 +82,16 @@ serve(async (req) => {
       },
     );
   } catch (error) {
-    console.error('Error in Slack OAuth process:', error);
+    console.error('Error in Slack OAuth process:', {
+      message: error.message,
+      stack: error.stack,
+      type: error.constructor.name
+    });
+    
     return new Response(
       JSON.stringify({ 
         error: error.message,
-        detail: 'Failed to complete Slack authentication'
+        detail: 'Failed to complete Slack authentication. Check Edge Function logs for details.'
       }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
