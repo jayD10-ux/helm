@@ -44,29 +44,43 @@ serve(async (req) => {
 
     console.log('Starting Gmail API request with access token');
 
+    // Log token format for debugging (first few characters)
+    console.log('Token format check:', {
+      length: access_token.length,
+      prefix: access_token.substring(0, 10) + '...',
+    });
+
+    // Properly format the Bearer token
+    const bearerToken = access_token.startsWith('Bearer ') 
+      ? access_token 
+      : `Bearer ${access_token}`;
+
     // First, validate the token by making a simple userinfo request
     const validateResponse = await fetch(
-      'https://www.googleapis.com/oauth2/v1/userinfo',
+      'https://www.googleapis.com/oauth2/v2/userinfo',
       {
         headers: {
-          'Authorization': `Bearer ${access_token}`,
+          'Authorization': bearerToken,
+          'Accept': 'application/json',
         }
       }
     );
 
     if (!validateResponse.ok) {
-      console.error('Token validation failed:', await validateResponse.text());
-      throw new Error('Invalid or expired access token');
+      const validationError = await validateResponse.text();
+      console.error('Token validation failed:', validationError);
+      throw new Error(`Token validation failed: ${validationError}`);
     }
 
-    console.log('Access token validated successfully');
+    const userInfo = await validateResponse.json();
+    console.log('Token validated successfully for email:', userInfo.email);
 
-    // Fetch Gmail messages with detailed error logging
+    // Fetch Gmail messages
     const response = await fetch(
       'https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=10',
       {
         headers: {
-          'Authorization': `Bearer ${access_token}`,
+          'Authorization': bearerToken,
           'Accept': 'application/json',
         }
       }
@@ -76,7 +90,6 @@ serve(async (req) => {
     const responseText = await response.text();
     console.log('Gmail API Response Status:', response.status);
     console.log('Gmail API Response Headers:', Object.fromEntries(response.headers));
-    console.log('Gmail API Response Body:', responseText);
 
     if (!response.ok) {
       let errorMessage = 'Failed to fetch Gmail messages';
@@ -101,7 +114,7 @@ serve(async (req) => {
     const { messages } = JSON.parse(responseText);
     console.log(`Found ${messages?.length || 0} messages`);
 
-    // Fetch details for each message with improved error handling
+    // Fetch details for each message
     const messageDetails = await Promise.all(
       messages.map(async (msg: { id: string }) => {
         console.log(`Fetching details for message ${msg.id}`);
@@ -109,7 +122,7 @@ serve(async (req) => {
           `https://gmail.googleapis.com/gmail/v1/users/me/messages/${msg.id}`,
           {
             headers: {
-              'Authorization': `Bearer ${access_token}`,
+              'Authorization': bearerToken,
               'Accept': 'application/json',
             }
           }
@@ -151,7 +164,7 @@ serve(async (req) => {
     return new Response(
       JSON.stringify({
         error: error.message,
-        detail: 'If this error persists, please try disconnecting and reconnecting your Gmail account with full access permissions.'
+        detail: 'Please try disconnecting and reconnecting your Gmail account. Make sure to grant all required permissions.'
       }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
