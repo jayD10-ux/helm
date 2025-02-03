@@ -31,6 +31,7 @@ const OAuthCallback = () => {
           throw new Error("Authentication required");
         }
 
+        // Exchange the code for tokens
         const { data, error: functionError } = await supabase.functions.invoke(
           `${provider}-oauth`,
           {
@@ -42,12 +43,16 @@ const OAuthCallback = () => {
         );
 
         if (functionError) {
+          console.error('OAuth function error:', functionError);
           throw functionError;
         }
 
         if (!data?.access_token) {
+          console.error('No access token in response:', data);
           throw new Error("No access token received");
         }
+
+        console.log('Received OAuth tokens, storing in database...');
 
         // Store the integration in the database
         const { error: dbError } = await supabase
@@ -66,6 +71,8 @@ const OAuthCallback = () => {
           console.error('Database error:', dbError);
           throw dbError;
         }
+
+        console.log('Successfully stored integration data');
 
         // Get the return URL from localStorage
         const returnUrl = localStorage.getItem(`${provider}OAuthReturnTo`) || "/";

@@ -65,6 +65,26 @@ serve(async (req) => {
     const tokens: GoogleTokenResponse = await tokenResponse.json();
     console.log('Successfully received tokens');
 
+    // Validate the tokens
+    if (!tokens.access_token) {
+      throw new Error('No access token received from Google');
+    }
+
+    // Verify the token with Google's userinfo endpoint
+    const userinfoResponse = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
+      headers: {
+        'Authorization': `Bearer ${tokens.access_token}`
+      }
+    });
+
+    if (!userinfoResponse.ok) {
+      const errorData = await userinfoResponse.text();
+      console.error('Token validation failed:', errorData);
+      throw new Error('Invalid access token received from Google');
+    }
+
+    console.log('Token validated successfully with userinfo endpoint');
+
     // Calculate token expiration
     const expiresAt = new Date();
     expiresAt.setSeconds(expiresAt.getSeconds() + tokens.expires_in);
