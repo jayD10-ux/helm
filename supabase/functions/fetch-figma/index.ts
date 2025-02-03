@@ -46,13 +46,14 @@ serve(async (req) => {
       throw new Error('No authorization header');
     }
 
-    // Verify the user's session
+    console.log('Validating user session...');
     const { data: { user }, error: authError } = await supabase.auth.getUser(authHeader);
     if (authError || !user) {
+      console.error('Auth error:', authError);
       throw new Error('Invalid session');
     }
 
-    // Get the user's Figma integration
+    console.log('Fetching Figma integration for user:', user.id);
     const { data: integration, error: integrationError } = await supabase
       .from('integrations')
       .select('*')
@@ -60,13 +61,29 @@ serve(async (req) => {
       .eq('provider', 'figma')
       .single();
 
-    if (integrationError || !integration?.access_token) {
+    if (integrationError) {
+      console.error('Integration fetch error:', integrationError);
+      throw new Error('Failed to fetch Figma integration');
+    }
+
+    if (!integration?.access_token) {
+      console.error('No access token found');
       throw new Error('No Figma integration found');
     }
 
+    console.log('Validating Figma access token...');
+    const userResponse = await fetch('https://api.figma.com/v1/me', {
+      headers: {
+        'Authorization': `Bearer ${integration.access_token}`,
+      },
+    });
+
+    if (!userResponse.ok) {
+      console.error('Failed to validate Figma token:', await userResponse.text());
+      throw new Error('Invalid Figma access token');
+    }
+
     console.log('Fetching Figma user files...');
-    
-    // First, get the user's files
     const filesResponse = await fetch(
       'https://api.figma.com/v1/me/files',
       {
@@ -77,8 +94,9 @@ serve(async (req) => {
     );
 
     if (!filesResponse.ok) {
-      console.error('Failed to fetch Figma files:', await filesResponse.text());
-      throw new Error('Failed to fetch Figma files');
+      const errorText = await filesResponse.text();
+      console.error('Failed to fetch Figma files:', errorText);
+      throw new Error(`Failed to fetch Figma files: ${errorText}`);
     }
 
     const filesData = await filesResponse.json();
@@ -88,8 +106,9 @@ serve(async (req) => {
 
     // For each file, fetch its comments
     const filesWithComments = await Promise.all(
-      files.slice(0, 5).map(async (file) => { // Limit to 5 files to avoid rate limits
+      files.slice(0, 5).map(async (file) => {
         try {
+          console.log(`Fetching comments for file: ${file.key}`);
           const commentsResponse = await fetch(
             `https://api.figma.com/v1/files/${file.key}/comments`,
             {
@@ -108,6 +127,7 @@ serve(async (req) => {
           }
 
           const commentsData = await commentsResponse.json();
+          console.log(`Found ${commentsData.comments?.length || 0} comments in file ${file.key}`);
           return {
             ...file,
             comments: commentsData.comments || [],
@@ -126,6 +146,7 @@ serve(async (req) => {
     const filesWithThumbnails = await Promise.all(
       filesWithComments.map(async (file) => {
         try {
+          console.log(`Fetching thumbnail for file: ${file.key}`);
           const thumbnailResponse = await fetch(
             `https://api.figma.com/v1/files/${file.key}/thumbnails`,
             {
@@ -136,6 +157,7 @@ serve(async (req) => {
           );
 
           if (!thumbnailResponse.ok) {
+            console.error(`Failed to fetch thumbnail for file ${file.key}:`, await thumbnailResponse.text());
             return file;
           }
 
@@ -151,6 +173,7 @@ serve(async (req) => {
       })
     );
 
+    console.log('Successfully processed all Figma data');
     return new Response(
       JSON.stringify({
         files: filesWithThumbnails,
@@ -161,7 +184,7 @@ serve(async (req) => {
       }
     );
   } catch (error) {
-    console.error('Error fetching Figma data:', error);
+    console.error('Error in fetch-figma function:', error);
     return new Response(
       JSON.stringify({
         error: error.message,
