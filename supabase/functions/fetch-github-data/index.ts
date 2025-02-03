@@ -7,38 +7,50 @@ const corsHeaders = {
 }
 
 serve(async (req) => {
+  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
   }
 
   try {
-    console.log('Fetching GitHub data...')
+    console.log('Starting GitHub data fetch process...')
     
+    // Initialize Supabase client
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_ANON_KEY') ?? ''
     )
 
     // Get the user from the auth header
-    const authHeader = req.headers.get('Authorization')!
-    console.log('Auth header present:', !!authHeader)
+    const authHeader = req.headers.get('Authorization')
+    if (!authHeader) {
+      console.error('No authorization header provided')
+      throw new Error('No authorization header provided')
+    }
     
+    console.log('Authenticating user...')
     const { data: { user }, error: userError } = await supabase.auth.getUser(authHeader.replace('Bearer ', ''))
     
     if (userError) {
-      console.error('User auth error:', userError)
+      console.error('User authentication error:', userError)
       throw userError
     }
     
-    console.log('User authenticated:', user?.id)
+    if (!user) {
+      console.error('No user found')
+      throw new Error('No user found')
+    }
+    
+    console.log('User authenticated:', user.id)
 
     // Get the GitHub integration for this user
+    console.log('Fetching GitHub integration...')
     const { data: integration, error: integrationError } = await supabase
       .from('integrations')
       .select('*')
       .eq('provider', 'github')
-      .eq('user_id', user?.id)
-      .single()
+      .eq('user_id', user.id)
+      .maybeSingle()
 
     if (integrationError) {
       console.error('Integration fetch error:', integrationError)
@@ -50,13 +62,15 @@ serve(async (req) => {
       throw new Error('No GitHub access token found')
     }
     
-    console.log('GitHub integration found')
+    console.log('GitHub integration found with access token')
 
     // Fetch GitHub user data
+    console.log('Fetching GitHub user data...')
     const userResponse = await fetch('https://api.github.com/user', {
       headers: {
         'Authorization': `Bearer ${integration.access_token}`,
-        'Accept': 'application/vnd.github.v3+json'
+        'Accept': 'application/vnd.github.v3+json',
+        'User-Agent': 'Supabase Edge Function'
       }
     })
     
@@ -67,13 +81,15 @@ serve(async (req) => {
     }
     
     const userData = await userResponse.json()
-    console.log('GitHub user data fetched')
+    console.log('GitHub user data fetched successfully')
 
     // Fetch recent repositories
+    console.log('Fetching GitHub repositories...')
     const reposResponse = await fetch('https://api.github.com/user/repos?sort=updated&per_page=5', {
       headers: {
         'Authorization': `Bearer ${integration.access_token}`,
-        'Accept': 'application/vnd.github.v3+json'
+        'Accept': 'application/vnd.github.v3+json',
+        'User-Agent': 'Supabase Edge Function'
       }
     })
     
@@ -84,24 +100,34 @@ serve(async (req) => {
     }
     
     const reposData = await reposResponse.json()
-    console.log('GitHub repos data fetched')
+    console.log('GitHub repos data fetched successfully')
 
+    // Return the combined data
     return new Response(
       JSON.stringify({
         user: userData,
         repositories: reposData
       }),
       { 
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        headers: { 
+          ...corsHeaders, 
+          'Content-Type': 'application/json'
+        },
         status: 200 
       }
     )
   } catch (error) {
     console.error('Function error:', error)
+    // Ensure we always return a JSON response, even for errors
     return new Response(
-      JSON.stringify({ error: error.message }),
+      JSON.stringify({ 
+        error: error instanceof Error ? error.message : 'An unknown error occurred'
+      }),
       { 
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        headers: { 
+          ...corsHeaders, 
+          'Content-Type': 'application/json'
+        },
         status: 400
       }
     )
