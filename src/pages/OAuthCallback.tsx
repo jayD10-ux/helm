@@ -49,7 +49,7 @@ const OAuthCallback = () => {
           throw new Error("No access token received");
         }
 
-        // Store the integration in the database with user_id
+        // Store the integration in the database
         const { error: dbError } = await supabase
           .from('integrations')
           .upsert({
@@ -67,13 +67,17 @@ const OAuthCallback = () => {
           throw dbError;
         }
 
+        // Get the return URL from localStorage
+        const returnUrl = localStorage.getItem(`${provider}OAuthReturnTo`) || "/";
+        localStorage.removeItem(`${provider}OAuthReturnTo`);
+
         toast({
           title: "Success",
           description: `Successfully connected to ${provider}`,
         });
 
-        // Return to the dashboard
-        navigate("/");
+        // Return to the stored URL
+        navigate(returnUrl);
       } catch (error: any) {
         console.error('OAuth callback error:', error);
         setError(error.message || "Failed to complete authentication");

@@ -83,19 +83,24 @@ const MainDashboard = () => {
         return;
       }
 
+      // Store the current URL to return to after OAuth
+      localStorage.setItem(`${provider}OAuthReturnTo`, window.location.pathname);
+
       // Construct the OAuth URL based on the provider
       let authUrl = '';
+      const redirectUri = `${window.location.origin}/oauth/callback`;
+      
       if (provider.toLowerCase() === 'github') {
         const scope = 'repo user';
         authUrl = `https://github.com/login/oauth/authorize?` +
           `client_id=${configData.clientId}&` +
-          `redirect_uri=${encodeURIComponent(`${window.location.origin}/oauth/callback`)}&` +
+          `redirect_uri=${encodeURIComponent(redirectUri)}&` +
           `scope=${encodeURIComponent(scope)}&` +
           `state=github`;
       } else if (provider.toLowerCase() === 'google') {
         authUrl = `https://accounts.google.com/o/oauth2/v2/auth?` +
           `client_id=${configData.clientId}&` +
-          `redirect_uri=${encodeURIComponent(`${window.location.origin}/oauth/callback`)}&` +
+          `redirect_uri=${encodeURIComponent(redirectUri)}&` +
           `response_type=code&` +
           `scope=${encodeURIComponent(configData.scopes)}&` +
           `access_type=offline&` +
