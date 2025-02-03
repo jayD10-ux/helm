@@ -6,28 +6,8 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
-interface FigmaFile {
-  key: string;
-  name: string;
-  thumbnail_url?: string;
-  last_modified: string;
-}
-
-interface FigmaComment {
-  id: string;
-  file_key: string;
-  parent_id: string | null;
-  message: string;
-  created_at: string;
-  resolved: boolean;
-  client_meta: {
-    node_id?: string;
-    node_offset?: { x: number; y: number };
-  };
-}
-
 serve(async (req) => {
-  console.log('Received request to fetch Figma data');
+  console.log('Starting Figma data fetch...');
 
   if (req.method === 'OPTIONS') {
     console.log('Handling CORS preflight request');
@@ -43,6 +23,7 @@ serve(async (req) => {
     // Get the user ID from the authorization header
     const authHeader = req.headers.get('Authorization')?.split('Bearer ')[1];
     if (!authHeader) {
+      console.error('No authorization header found');
       throw new Error('No authorization header');
     }
 
@@ -67,8 +48,8 @@ serve(async (req) => {
     }
 
     if (!integration?.access_token) {
-      console.error('No access token found');
-      throw new Error('No Figma integration found');
+      console.error('No access token found in integration record');
+      throw new Error('No Figma access token found');
     }
 
     console.log('Validating Figma access token...');
@@ -100,11 +81,11 @@ serve(async (req) => {
     }
 
     const filesData = await filesResponse.json();
-    const files: FigmaFile[] = filesData.files || [];
+    const files = filesData.files || [];
 
     console.log(`Found ${files.length} Figma files`);
 
-    // For each file, fetch its comments
+    // For each file, fetch its comments (limit to 5 files to avoid rate limits)
     const filesWithComments = await Promise.all(
       files.slice(0, 5).map(async (file) => {
         try {
@@ -127,7 +108,6 @@ serve(async (req) => {
           }
 
           const commentsData = await commentsResponse.json();
-          console.log(`Found ${commentsData.comments?.length || 0} comments in file ${file.key}`);
           return {
             ...file,
             comments: commentsData.comments || [],
@@ -188,7 +168,7 @@ serve(async (req) => {
     return new Response(
       JSON.stringify({
         error: error.message,
-        details: 'Failed to fetch Figma data. Check Edge Function logs for details.'
+        details: 'Failed to fetch Figma data. Please check Edge Function logs for details.'
       }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
