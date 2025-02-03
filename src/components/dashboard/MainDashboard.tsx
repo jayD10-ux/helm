@@ -5,8 +5,10 @@ import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useEffect, useState } from "react";
 import GitHubPanel from "./GitHubPanel";
 import IntegrationCard from "./IntegrationCard";
+import { Session } from "@supabase/supabase-js";
 
 interface Integration {
   id: string;
@@ -19,7 +21,24 @@ const MainDashboard = () => {
   const { toast } = useToast();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const { data: session } = await supabase.auth.getSession();
+  const [session, setSession] = useState<Session | null>(null);
+
+  useEffect(() => {
+    const getSession = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      setSession(session);
+    };
+
+    getSession();
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session);
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
 
   const { data: integrations, isLoading: isLoadingIntegrations } = useQuery({
     queryKey: ['integrations'],
@@ -51,6 +70,15 @@ const MainDashboard = () => {
   };
 
   const handleConnect = async (provider: string, webhookUrl: string) => {
+    if (!session?.user?.id) {
+      toast({
+        title: "Error",
+        description: "You must be logged in to connect integrations",
+        variant: "destructive",
+      });
+      return;
+    }
+
     try {
       const { error } = await supabase
         .from('integrations')
@@ -58,7 +86,7 @@ const MainDashboard = () => {
           {
             provider: provider.toLowerCase(),
             webhook_url: webhookUrl,
-            user_id: session?.user?.id,
+            user_id: session.user.id,
           }
         ]);
 
