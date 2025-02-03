@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -55,10 +56,6 @@ serve(async (req) => {
     // Validate token format
     if (cleanToken.length < 50) {
       throw new Error('Token appears invalid - too short')
-    }
-
-    if (!/^[A-Za-z0-9-_]+\.[A-Za-z0-9-_]+\.[A-Za-z0-9-_]*$/.test(cleanToken)) {
-      console.warn('Token format warning: Token does not match expected OAuth2 JWT format')
     }
 
     console.log('Token preparation complete:', {
