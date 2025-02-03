@@ -3,6 +3,7 @@ import { Card } from "@/components/ui/card";
 import { supabase } from "@/integrations/supabase/client";
 import { Loader, Star, GitFork, Clock } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
+import { useToast } from "@/hooks/use-toast";
 
 interface GitHubRepo {
   id: number;
@@ -29,9 +30,12 @@ interface GitHubData {
 }
 
 const GitHubPanel = () => {
-  const { data: integration, isLoading: isLoadingIntegration } = useQuery({
+  const { toast } = useToast();
+
+  const { data: integration, isLoading: isLoadingIntegration, error: integrationError } = useQuery({
     queryKey: ['github-integration'],
     queryFn: async () => {
+      console.log('Fetching GitHub integration...');
       const { data, error } = await supabase
         .from('integrations')
         .select('*')
@@ -43,14 +47,16 @@ const GitHubPanel = () => {
         throw error;
       }
       
+      console.log('GitHub integration found:', !!data);
       return data;
     }
   });
 
-  const { data: githubData, isLoading: isLoadingGithubData } = useQuery({
+  const { data: githubData, isLoading: isLoadingGithubData, error: githubError } = useQuery({
     queryKey: ['github-data', integration?.access_token],
     enabled: !!integration?.access_token,
     queryFn: async () => {
+      console.log('Fetching GitHub data...');
       const { data: sessionData } = await supabase.auth.getSession();
       const response = await fetch(`${window.location.origin}/functions/v1/fetch-github-data`, {
         headers: {
@@ -59,12 +65,35 @@ const GitHubPanel = () => {
       });
       
       if (!response.ok) {
-        throw new Error('Failed to fetch GitHub data');
+        const errorText = await response.text();
+        console.error('GitHub data fetch error:', errorText);
+        throw new Error(errorText);
       }
       
-      return response.json() as Promise<GitHubData>;
+      const data = await response.json();
+      console.log('GitHub data fetched successfully');
+      return data as GitHubData;
     }
   });
+
+  // Show any errors using toast
+  if (integrationError) {
+    console.error('Integration error:', integrationError);
+    toast({
+      title: "Error",
+      description: "Failed to fetch GitHub integration. Please try again.",
+      variant: "destructive",
+    });
+  }
+
+  if (githubError) {
+    console.error('GitHub data error:', githubError);
+    toast({
+      title: "Error",
+      description: "Failed to fetch GitHub data. Please try again.",
+      variant: "destructive",
+    });
+  }
 
   if (isLoadingIntegration || isLoadingGithubData) {
     return (

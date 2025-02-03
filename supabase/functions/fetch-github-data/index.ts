@@ -12,6 +12,8 @@ serve(async (req) => {
   }
 
   try {
+    console.log('Fetching GitHub data...')
+    
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_ANON_KEY') ?? ''
@@ -19,9 +21,16 @@ serve(async (req) => {
 
     // Get the user from the auth header
     const authHeader = req.headers.get('Authorization')!
+    console.log('Auth header present:', !!authHeader)
+    
     const { data: { user }, error: userError } = await supabase.auth.getUser(authHeader.replace('Bearer ', ''))
     
-    if (userError) throw userError
+    if (userError) {
+      console.error('User auth error:', userError)
+      throw userError
+    }
+    
+    console.log('User authenticated:', user?.id)
 
     // Get the GitHub integration for this user
     const { data: integration, error: integrationError } = await supabase
@@ -31,8 +40,17 @@ serve(async (req) => {
       .eq('user_id', user?.id)
       .single()
 
-    if (integrationError) throw integrationError
-    if (!integration?.access_token) throw new Error('No GitHub access token found')
+    if (integrationError) {
+      console.error('Integration fetch error:', integrationError)
+      throw integrationError
+    }
+    
+    if (!integration?.access_token) {
+      console.error('No GitHub access token found')
+      throw new Error('No GitHub access token found')
+    }
+    
+    console.log('GitHub integration found')
 
     // Fetch GitHub user data
     const userResponse = await fetch('https://api.github.com/user', {
@@ -41,7 +59,15 @@ serve(async (req) => {
         'Accept': 'application/vnd.github.v3+json'
       }
     })
+    
+    if (!userResponse.ok) {
+      const errorText = await userResponse.text()
+      console.error('GitHub user API error:', errorText)
+      throw new Error(`GitHub API error: ${errorText}`)
+    }
+    
     const userData = await userResponse.json()
+    console.log('GitHub user data fetched')
 
     // Fetch recent repositories
     const reposResponse = await fetch('https://api.github.com/user/repos?sort=updated&per_page=5', {
@@ -50,7 +76,15 @@ serve(async (req) => {
         'Accept': 'application/vnd.github.v3+json'
       }
     })
+    
+    if (!reposResponse.ok) {
+      const errorText = await reposResponse.text()
+      console.error('GitHub repos API error:', errorText)
+      throw new Error(`GitHub API error: ${errorText}`)
+    }
+    
     const reposData = await reposResponse.json()
+    console.log('GitHub repos data fetched')
 
     return new Response(
       JSON.stringify({
@@ -63,6 +97,7 @@ serve(async (req) => {
       }
     )
   } catch (error) {
+    console.error('Function error:', error)
     return new Response(
       JSON.stringify({ error: error.message }),
       { 
