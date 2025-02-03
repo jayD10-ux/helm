@@ -1,14 +1,23 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
+console.log('Edge Function: fetch-github-data loaded')
+
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
 serve(async (req) => {
+  console.log('Request received:', {
+    method: req.method,
+    url: req.url,
+    headers: Object.fromEntries(req.headers.entries())
+  })
+
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
+    console.log('Handling CORS preflight request')
     return new Response('ok', { headers: corsHeaders })
   }
 
@@ -16,13 +25,23 @@ serve(async (req) => {
     console.log('Starting GitHub data fetch process...')
     
     // Initialize Supabase client
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')
+    const supabaseKey = Deno.env.get('SUPABASE_ANON_KEY')
+    
+    console.log('Supabase configuration:', {
+      urlPresent: !!supabaseUrl,
+      keyPresent: !!supabaseKey
+    })
+    
     const supabase = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_ANON_KEY') ?? ''
+      supabaseUrl ?? '',
+      supabaseKey ?? ''
     )
 
     // Get the user from the auth header
     const authHeader = req.headers.get('Authorization')
+    console.log('Authorization header present:', !!authHeader)
+    
     if (!authHeader) {
       console.error('No authorization header provided')
       throw new Error('No authorization header provided')
@@ -81,7 +100,10 @@ serve(async (req) => {
     }
     
     const userData = await userResponse.json()
-    console.log('GitHub user data fetched successfully')
+    console.log('GitHub user data fetched successfully:', {
+      login: userData.login,
+      id: userData.id
+    })
 
     // Fetch recent repositories
     console.log('Fetching GitHub repositories...')
@@ -100,14 +122,20 @@ serve(async (req) => {
     }
     
     const reposData = await reposResponse.json()
-    console.log('GitHub repos data fetched successfully')
+    console.log('GitHub repos data fetched successfully:', {
+      count: reposData.length
+    })
 
     // Return the combined data
+    const response = {
+      user: userData,
+      repositories: reposData
+    }
+    
+    console.log('Returning successful response')
+    
     return new Response(
-      JSON.stringify({
-        user: userData,
-        repositories: reposData
-      }),
+      JSON.stringify(response),
       { 
         headers: { 
           ...corsHeaders, 
@@ -117,7 +145,11 @@ serve(async (req) => {
       }
     )
   } catch (error) {
-    console.error('Function error:', error)
+    console.error('Function error:', {
+      message: error instanceof Error ? error.message : 'An unknown error occurred',
+      stack: error instanceof Error ? error.stack : undefined
+    })
+    
     // Ensure we always return a JSON response, even for errors
     return new Response(
       JSON.stringify({ 
