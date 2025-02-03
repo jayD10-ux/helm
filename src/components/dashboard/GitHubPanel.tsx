@@ -54,32 +54,33 @@ const GitHubPanel = () => {
   });
 
   const { data: githubData, isLoading: isLoadingGithubData, error: githubError } = useQuery({
-    queryKey: ['github-data', integration?.access_token],
-    enabled: !!integration?.access_token,
+    queryKey: ['github-data', integration?.webhook_url],
+    enabled: !!integration?.webhook_url,
     queryFn: async () => {
       console.log('Fetching GitHub data...');
       
-      // Get the current session for authentication
       const { data: { session } } = await supabase.auth.getSession();
       
       if (!session) {
         throw new Error('No active session');
       }
 
-      const { data, error } = await supabase.functions.invoke('fetch-github-data', {
+      const response = await fetch(integration.webhook_url, {
+        method: 'POST',
         headers: {
-          Authorization: `Bearer ${session.access_token}`,
+          'Content-Type': 'application/json',
         },
-        body: {
-          access_token: integration.access_token,
-        },
+        body: JSON.stringify({
+          timestamp: new Date().toISOString(),
+          triggered_from: window.location.origin,
+        }),
       });
-      
-      if (error) {
-        console.error('GitHub data fetch error:', error);
-        throw error;
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch GitHub data');
       }
-      
+
+      const data = await response.json();
       console.log('GitHub data fetched successfully');
       return data as GitHubData;
     }

@@ -19,6 +19,7 @@ const MainDashboard = () => {
   const { toast } = useToast();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const { data: session } = await supabase.auth.getSession();
 
   const { data: integrations, isLoading: isLoadingIntegrations } = useQuery({
     queryKey: ['integrations'],
@@ -32,7 +33,7 @@ const MainDashboard = () => {
         throw error;
       }
       
-      return data as Integration[];
+      return data;
     }
   });
 
@@ -57,6 +58,7 @@ const MainDashboard = () => {
           {
             provider: provider.toLowerCase(),
             webhook_url: webhookUrl,
+            user_id: session?.user?.id,
           }
         ]);
 

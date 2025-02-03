@@ -33,18 +33,29 @@ const GmailMessages = () => {
   } = useQuery({
     queryKey: ['gmail-messages'],
     queryFn: async () => {
-      if (!integrations?.[0]?.access_token) {
+      if (!integrations?.[0]?.webhook_url) {
         throw new Error('No Gmail integration found');
       }
 
-      const { data, error } = await supabase.functions.invoke('fetch-gmail', {
-        body: { access_token: integrations[0].access_token }
+      const response = await fetch(integrations[0].webhook_url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          timestamp: new Date().toISOString(),
+          triggered_from: window.location.origin,
+        }),
       });
 
-      if (error) throw error;
+      if (!response.ok) {
+        throw new Error('Failed to fetch Gmail data');
+      }
+
+      const data = await response.json();
       return data.emails;
     },
-    enabled: !!integrations?.[0]?.access_token
+    enabled: !!integrations?.[0]?.webhook_url
   });
 
   const handleDisconnect = async () => {
@@ -101,7 +112,7 @@ const GmailMessages = () => {
     );
   }
 
-  const hasGmailIntegration = !!integrations?.[0]?.access_token;
+  const hasGmailIntegration = !!integrations?.[0]?.webhook_url;
 
   if (!hasGmailIntegration) {
     return (
