@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import GitHubPanel from "./GitHubPanel";
 
 interface Integration {
@@ -16,6 +16,7 @@ interface Integration {
 const MainDashboard = () => {
   const { toast } = useToast();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
 
   const { data: integrations, isLoading: isLoadingIntegrations } = useQuery({
     queryKey: ['integrations'],
@@ -44,6 +45,31 @@ const MainDashboard = () => {
     if (isLoadingIntegrations) return "Loading...";
     const integration = integrations?.find(i => i.provider.toLowerCase() === provider.toLowerCase());
     return integration?.access_token ? "Connected" : "Not Connected";
+  };
+
+  const handleDisconnect = async (provider: string) => {
+    try {
+      const { error } = await supabase
+        .from('integrations')
+        .delete()
+        .eq('provider', provider.toLowerCase());
+
+      if (error) throw error;
+
+      await queryClient.invalidateQueries({ queryKey: ['integrations'] });
+      
+      toast({
+        title: "Success",
+        description: `${provider} disconnected successfully`,
+      });
+    } catch (error: any) {
+      console.error('Disconnect error:', error);
+      toast({
+        title: "Error",
+        description: `Failed to disconnect ${provider}. Please try again.`,
+        variant: "destructive",
+      });
+    }
   };
 
   const handleOAuth = async (provider: string) => {
@@ -169,33 +195,48 @@ const MainDashboard = () => {
         <div>
           <h2 className="text-xl font-semibold mb-4">Integrations</h2>
           <div className="grid grid-cols-1 gap-4">
-            {integrationsList.map((integration) => (
-              <Card 
-                key={integration.title}
-                className="p-6 hover:shadow-lg transition-shadow duration-200 cursor-pointer"
-                onClick={() => handleOAuth(integration.provider)}
-              >
-                <div className="flex items-center space-x-4">
-                  <integration.icon className="w-6 h-6 text-muted-foreground" />
-                  <div>
-                    <h3 className="font-medium">{integration.title}</h3>
-                    <div className="flex items-center space-x-2">
-                      {isLoadingIntegrations ? (
-                        <Loader className="w-4 h-4 animate-spin text-muted-foreground" />
-                      ) : (
-                        <p className={`text-sm ${
-                          getIntegrationStatus(integration.provider) === "Connected" 
-                            ? "text-green-500" 
-                            : "text-muted-foreground"
-                        }`}>
-                          {getIntegrationStatus(integration.provider)}
-                        </p>
-                      )}
+            {integrationsList.map((integration) => {
+              const isConnected = getIntegrationStatus(integration.provider) === "Connected";
+              
+              return (
+                <Card 
+                  key={integration.title}
+                  className="p-6 hover:shadow-lg transition-shadow duration-200"
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-4">
+                      <integration.icon className="w-6 h-6 text-muted-foreground" />
+                      <div>
+                        <h3 className="font-medium">{integration.title}</h3>
+                        <div className="flex items-center space-x-2">
+                          {isLoadingIntegrations ? (
+                            <Loader className="w-4 h-4 animate-spin text-muted-foreground" />
+                          ) : (
+                            <p className={`text-sm ${
+                              isConnected 
+                                ? "text-green-500" 
+                                : "text-muted-foreground"
+                            }`}>
+                              {getIntegrationStatus(integration.provider)}
+                            </p>
+                          )}
+                        </div>
+                      </div>
                     </div>
+                    <Button
+                      variant={isConnected ? "outline" : "default"}
+                      size="sm"
+                      onClick={() => isConnected 
+                        ? handleDisconnect(integration.provider)
+                        : handleOAuth(integration.provider)
+                      }
+                    >
+                      {isConnected ? "Disconnect" : "Connect"}
+                    </Button>
                   </div>
-                </div>
-              </Card>
-            ))}
+                </Card>
+              );
+            })}
           </div>
         </div>
         

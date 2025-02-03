@@ -1,10 +1,15 @@
 import { MessageSquare, Mail, Github, Loader } from "lucide-react";
 import { Card } from "@/components/ui/card";
-import { useQuery } from "@tanstack/react-query";
+import { Button } from "@/components/ui/button";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
+import { useToast } from "@/hooks/use-toast";
 
 const MessagesPanel = () => {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+
   // Query to check if Google integration exists
   const { data: integrations, isLoading: isLoadingIntegrations } = useQuery({
     queryKey: ['integrations'],
@@ -31,11 +36,40 @@ const MessagesPanel = () => {
         body: { access_token: integrations[0].access_token }
       });
 
-      if (error) throw error;
+      if (error) {
+        console.error('Gmail fetch error:', error);
+        throw new Error('Failed to load emails. Please try reconnecting your Gmail account.');
+      }
       return data.emails;
     },
     enabled: !!integrations?.[0]?.access_token
   });
+
+  const handleDisconnect = async () => {
+    try {
+      const { error } = await supabase
+        .from('integrations')
+        .delete()
+        .eq('provider', 'google');
+
+      if (error) throw error;
+
+      await queryClient.invalidateQueries({ queryKey: ['integrations'] });
+      await queryClient.invalidateQueries({ queryKey: ['gmail-messages'] });
+
+      toast({
+        title: "Success",
+        description: "Gmail disconnected successfully",
+      });
+    } catch (error: any) {
+      console.error('Disconnect error:', error);
+      toast({
+        title: "Error",
+        description: "Failed to disconnect Gmail. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
 
   const isLoading = isLoadingIntegrations || isLoadingEmails;
   const hasGmailIntegration = !!integrations?.[0]?.access_token;
@@ -78,9 +112,19 @@ const MessagesPanel = () => {
           <MessageSquare className="w-5 h-5 text-muted-foreground" />
         </div>
         <Card className="p-4 bg-destructive/10">
-          <p className="text-sm text-destructive">
-            Error loading emails: {emailError.message}
-          </p>
+          <div className="flex flex-col space-y-4">
+            <p className="text-sm text-destructive">
+              {emailError.message}
+            </p>
+            <Button 
+              variant="outline" 
+              size="sm"
+              onClick={handleDisconnect}
+              className="w-fit"
+            >
+              Disconnect Gmail
+            </Button>
+          </div>
         </Card>
       </div>
     );
@@ -90,7 +134,16 @@ const MessagesPanel = () => {
     <div className="h-full w-full p-4 animate-fade-in">
       <div className="flex items-center justify-between mb-6">
         <h2 className="text-xl font-semibold">Messages</h2>
-        <MessageSquare className="w-5 h-5 text-muted-foreground" />
+        <div className="flex items-center space-x-2">
+          <Button 
+            variant="outline" 
+            size="sm"
+            onClick={handleDisconnect}
+          >
+            Disconnect
+          </Button>
+          <MessageSquare className="w-5 h-5 text-muted-foreground" />
+        </div>
       </div>
       <div className="space-y-4">
         {emails?.map((email: any) => (
