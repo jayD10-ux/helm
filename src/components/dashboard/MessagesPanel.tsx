@@ -45,7 +45,23 @@ const MessagesPanel = () => {
 
       if (error) {
         console.error('Gmail fetch error:', error);
-        throw new Error('Failed to load emails. Please try reconnecting your Gmail account.');
+        // Handle specific error codes
+        if (error.message.includes('code')) {
+          const errorData = JSON.parse(error.message);
+          switch (errorData.code) {
+            case 'TOKEN_EXPIRED_NO_REFRESH':
+            case 'TOKEN_REFRESH_FAILED':
+            case 'TOKEN_INVALID':
+              throw new Error('Gmail access expired. Please reconnect your account.');
+            case 'INTEGRATION_NOT_FOUND':
+              throw new Error('Gmail integration not found. Please connect your account.');
+            case 'GMAIL_API_ERROR':
+              throw new Error('Failed to fetch emails from Gmail. Please try again.');
+            default:
+              throw new Error(errorData.error || 'Failed to load emails');
+          }
+        }
+        throw new Error('Failed to load emails. Please try again.');
       }
       return data.emails;
     },
@@ -90,7 +106,7 @@ const MessagesPanel = () => {
       console.error('Refresh error:', error);
       toast({
         title: "Error",
-        description: "Failed to refresh emails. Please try again.",
+        description: error instanceof Error ? error.message : "Failed to refresh emails",
         variant: "destructive",
       });
     } finally {

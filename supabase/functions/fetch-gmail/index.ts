@@ -6,6 +6,38 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
+const GOOGLE_CLIENT_ID = Deno.env.get('GOOGLE_CLIENT_ID')!;
+const GOOGLE_CLIENT_SECRET = Deno.env.get('GOOGLE_CLIENT_SECRET')!;
+
+async function refreshGoogleToken(refresh_token: string) {
+  console.log('Refreshing Google access token...');
+  
+  const response = await fetch('https://oauth2.googleapis.com/token', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded',
+    },
+    body: new URLSearchParams({
+      client_id: GOOGLE_CLIENT_ID,
+      client_secret: GOOGLE_CLIENT_SECRET,
+      refresh_token: refresh_token,
+      grant_type: 'refresh_token',
+    }),
+  });
+
+  if (!response.ok) {
+    const error = await response.text();
+    console.error('Token refresh failed:', error);
+    throw new Error('Failed to refresh access token');
+  }
+
+  const data = await response.json();
+  return {
+    access_token: data.access_token,
+    expires_in: data.expires_in,
+  };
+}
+
 serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
@@ -24,7 +56,16 @@ serve(async (req) => {
     const authHeader = req.headers.get('Authorization')
     if (!authHeader) {
       console.error('No authorization header provided')
-      throw new Error('No authorization header')
+      return new Response(
+        JSON.stringify({ 
+          error: 'Authentication required',
+          code: 'AUTH_REQUIRED'
+        }),
+        {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 401,
+        }
+      )
     }
 
     // Verify user
@@ -34,31 +75,100 @@ serve(async (req) => {
 
     if (userError || !user) {
       console.error('User verification failed:', userError)
-      throw userError || new Error('User not found')
+      return new Response(
+        JSON.stringify({ 
+          error: 'Authentication failed',
+          code: 'AUTH_FAILED'
+        }),
+        {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 401,
+        }
+      )
     }
 
     console.log('User authenticated:', user.id)
 
-    // Parse request body
-    const requestBody = await req.json()
-    console.log('Request body received:', {
-      hasAccessToken: !!requestBody?.access_token,
-      tokenLength: requestBody?.access_token?.length
-    })
+    // Get the current integration
+    const { data: integrations, error: integrationError } = await supabaseClient
+      .from('integrations')
+      .select('*')
+      .eq('user_id', user.id)
+      .eq('provider', 'google')
+      .single()
 
-    if (!requestBody || typeof requestBody !== 'object') {
-      console.error('Invalid request body format')
-      throw new Error('Invalid request body format')
+    if (integrationError || !integrations) {
+      console.error('Failed to fetch integration:', integrationError)
+      return new Response(
+        JSON.stringify({ 
+          error: 'Gmail integration not found',
+          code: 'INTEGRATION_NOT_FOUND'
+        }),
+        {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 404,
+        }
+      )
     }
 
-    const { access_token } = requestBody
-    
-    if (!access_token) {
-      console.error('Missing access_token in request body')
-      throw new Error('No access token provided')
+    let { access_token, refresh_token, expires_at } = integrations
+
+    // Check if token is expired
+    if (expires_at && new Date(expires_at) < new Date()) {
+      console.log('Access token expired, attempting refresh...')
+      
+      if (!refresh_token) {
+        console.error('No refresh token available')
+        return new Response(
+          JSON.stringify({ 
+            error: 'Gmail access expired. Please reconnect your account.',
+            code: 'TOKEN_EXPIRED_NO_REFRESH'
+          }),
+          {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            status: 401,
+          }
+        )
+      }
+
+      try {
+        const { access_token: new_token, expires_in } = await refreshGoogleToken(refresh_token)
+        
+        // Update token in database
+        const expires_at = new Date()
+        expires_at.setSeconds(expires_at.getSeconds() + expires_in)
+        
+        const { error: updateError } = await supabaseClient
+          .from('integrations')
+          .update({ 
+            access_token: new_token,
+            expires_at: expires_at.toISOString()
+          })
+          .eq('user_id', user.id)
+          .eq('provider', 'google')
+
+        if (updateError) {
+          console.error('Failed to update token:', updateError)
+          throw new Error('Failed to update access token')
+        }
+
+        access_token = new_token
+      } catch (error) {
+        console.error('Token refresh failed:', error)
+        return new Response(
+          JSON.stringify({ 
+            error: 'Failed to refresh Gmail access. Please reconnect your account.',
+            code: 'TOKEN_REFRESH_FAILED'
+          }),
+          {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            status: 401,
+          }
+        )
+      }
     }
 
-    console.log('Attempting to fetch Gmail messages...')
+    console.log('Fetching Gmail messages...')
     
     // Make request to Gmail API
     const gmailResponse = await fetch(
@@ -73,40 +183,51 @@ serve(async (req) => {
 
     console.log('Gmail API response status:', gmailResponse.status)
     
-    const responseText = await gmailResponse.text()
-    
-    // Log Gmail API error details if any
     if (!gmailResponse.ok) {
-      console.error('Gmail API error details:', {
-        status: gmailResponse.status,
-        statusText: gmailResponse.statusText,
-        response: responseText
-      })
+      const error = await gmailResponse.text()
+      console.error('Gmail API error:', error)
       
-      // Try to parse error response
-      try {
-        const errorData = JSON.parse(responseText)
-        throw new Error(`Gmail API error: ${errorData.error?.message || responseText}`)
-      } catch (e) {
-        throw new Error(`Gmail API error (${gmailResponse.status}): ${responseText}`)
+      // Check if token is invalid
+      if (gmailResponse.status === 401) {
+        return new Response(
+          JSON.stringify({ 
+            error: 'Gmail access expired. Please reconnect your account.',
+            code: 'TOKEN_INVALID'
+          }),
+          {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            status: 401,
+          }
+        )
       }
+      
+      return new Response(
+        JSON.stringify({ 
+          error: 'Failed to fetch emails from Gmail',
+          code: 'GMAIL_API_ERROR'
+        }),
+        {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: gmailResponse.status,
+        }
+      )
     }
 
-    // Parse Gmail API response
-    let data;
-    try {
-      data = JSON.parse(responseText)
-    } catch (e) {
-      console.error('Failed to parse Gmail API response:', responseText)
-      throw new Error('Invalid response from Gmail API')
-    }
-
-    const { messages } = data
+    const { messages } = await gmailResponse.json()
     console.log(`Found ${messages?.length || 0} messages`)
 
     if (!messages || !Array.isArray(messages)) {
-      console.error('No messages array in response:', data)
-      throw new Error('No messages found in Gmail response')
+      console.error('No messages array in response')
+      return new Response(
+        JSON.stringify({ 
+          error: 'No emails found',
+          code: 'NO_MESSAGES'
+        }),
+        {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 404,
+        }
+      )
     }
 
     // Fetch message details
@@ -159,12 +280,11 @@ serve(async (req) => {
   } catch (error) {
     console.error('Error in fetch-gmail function:', error)
     
-    // Return a more detailed error response
     return new Response(
-      JSON.stringify({
-        error: error.message,
-        detail: 'Failed to fetch Gmail messages. Please check the function logs for more details.',
-        timestamp: new Date().toISOString()
+      JSON.stringify({ 
+        error: 'An unexpected error occurred',
+        detail: error.message,
+        code: 'UNKNOWN_ERROR'
       }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
