@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Loader, Star, GitFork, Clock } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
+import { useEffect } from "react";
 
 interface GitHubRepo {
   id: number;
@@ -76,24 +77,28 @@ const GitHubPanel = () => {
     }
   });
 
-  // Show any errors using toast
-  if (integrationError) {
-    console.error('Integration error:', integrationError);
-    toast({
-      title: "Error",
-      description: "Failed to fetch GitHub integration. Please try again.",
-      variant: "destructive",
-    });
-  }
+  // Handle errors using useEffect to prevent infinite renders
+  useEffect(() => {
+    if (integrationError) {
+      console.error('Integration error:', integrationError);
+      toast({
+        title: "Error",
+        description: "Failed to fetch GitHub integration. Please try again.",
+        variant: "destructive",
+      });
+    }
+  }, [integrationError, toast]);
 
-  if (githubError) {
-    console.error('GitHub data error:', githubError);
-    toast({
-      title: "Error",
-      description: "Failed to fetch GitHub data. Please try again.",
-      variant: "destructive",
-    });
-  }
+  useEffect(() => {
+    if (githubError) {
+      console.error('GitHub data error:', githubError);
+      toast({
+        title: "Error",
+        description: "Failed to fetch GitHub data. Please try again.",
+        variant: "destructive",
+      });
+    }
+  }, [githubError, toast]);
 
   if (isLoadingIntegration || isLoadingGithubData) {
     return (
