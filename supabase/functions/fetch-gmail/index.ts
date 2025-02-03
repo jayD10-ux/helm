@@ -4,6 +4,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Content-Type': 'application/json'
 }
 
 const GOOGLE_CLIENT_ID = Deno.env.get('GOOGLE_CLIENT_ID')!;
@@ -28,7 +29,10 @@ async function refreshGoogleToken(refresh_token: string) {
   if (!response.ok) {
     const error = await response.text();
     console.error('Token refresh failed:', error);
-    throw new Error('Failed to refresh access token');
+    throw new Error(JSON.stringify({
+      code: 'TOKEN_REFRESH_FAILED',
+      message: 'Failed to refresh access token'
+    }));
   }
 
   const data = await response.json();
@@ -41,7 +45,7 @@ async function refreshGoogleToken(refresh_token: string) {
 serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders })
+    return new Response(JSON.stringify({ message: 'ok' }), { headers: corsHeaders });
   }
 
   try {
@@ -62,7 +66,7 @@ serve(async (req) => {
           code: 'AUTH_REQUIRED'
         }),
         {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          headers: corsHeaders,
           status: 401,
         }
       )
@@ -81,7 +85,7 @@ serve(async (req) => {
           code: 'AUTH_FAILED'
         }),
         {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          headers: corsHeaders,
           status: 401,
         }
       )
@@ -105,7 +109,7 @@ serve(async (req) => {
           code: 'INTEGRATION_NOT_FOUND'
         }),
         {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          headers: corsHeaders,
           status: 404,
         }
       )
@@ -125,7 +129,7 @@ serve(async (req) => {
             code: 'TOKEN_EXPIRED_NO_REFRESH'
           }),
           {
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            headers: corsHeaders,
             status: 401,
           }
         )
@@ -149,7 +153,16 @@ serve(async (req) => {
 
         if (updateError) {
           console.error('Failed to update token:', updateError)
-          throw new Error('Failed to update access token')
+          return new Response(
+            JSON.stringify({ 
+              error: 'Failed to update access token',
+              code: 'TOKEN_UPDATE_FAILED'
+            }),
+            {
+              headers: corsHeaders,
+              status: 500,
+            }
+          )
         }
 
         access_token = new_token
@@ -161,7 +174,7 @@ serve(async (req) => {
             code: 'TOKEN_REFRESH_FAILED'
           }),
           {
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            headers: corsHeaders,
             status: 401,
           }
         )
@@ -195,7 +208,7 @@ serve(async (req) => {
             code: 'TOKEN_INVALID'
           }),
           {
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            headers: corsHeaders,
             status: 401,
           }
         )
@@ -207,7 +220,7 @@ serve(async (req) => {
           code: 'GMAIL_API_ERROR'
         }),
         {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          headers: corsHeaders,
           status: gmailResponse.status,
         }
       )
@@ -224,7 +237,7 @@ serve(async (req) => {
           code: 'NO_MESSAGES'
         }),
         {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          headers: corsHeaders,
           status: 404,
         }
       )
@@ -273,7 +286,7 @@ serve(async (req) => {
     return new Response(
       JSON.stringify({ emails: formattedEmails }),
       {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        headers: corsHeaders,
         status: 200,
       }
     )
@@ -283,11 +296,11 @@ serve(async (req) => {
     return new Response(
       JSON.stringify({ 
         error: 'An unexpected error occurred',
-        detail: error.message,
+        detail: error instanceof Error ? error.message : String(error),
         code: 'UNKNOWN_ERROR'
       }),
       {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        headers: corsHeaders,
         status: 500,
       }
     )
