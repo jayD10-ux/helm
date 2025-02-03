@@ -44,46 +44,18 @@ serve(async (req) => {
       throw new Error('Invalid request body format')
     }
 
-    let { access_token } = requestBody
+    const { access_token } = requestBody
     
     if (!access_token) {
       console.error('Missing access_token in request body')
       throw new Error('No access token provided')
     }
 
-    // Clean the token - remove any existing 'Bearer ' prefix
-    access_token = access_token.replace(/^Bearer\s+/i, '').trim()
-    
-    console.log('Token validation:', {
-      length: access_token.length,
-      firstChars: access_token.substring(0, 5),
-      lastChars: access_token.substring(access_token.length - 5)
-    })
-
     // Prepare headers for Google API requests
     const headers = {
       'Authorization': `Bearer ${access_token}`,
       'Accept': 'application/json',
     }
-
-    // First validate the token with userinfo endpoint
-    console.log('Validating token with userinfo endpoint...')
-    const validateResponse = await fetch(
-      'https://www.googleapis.com/oauth2/v3/userinfo',
-      { headers }
-    )
-
-    if (!validateResponse.ok) {
-      const errorText = await validateResponse.text()
-      console.error('Token validation failed:', {
-        status: validateResponse.status,
-        text: errorText
-      })
-      throw new Error(`Invalid access token (${validateResponse.status}): ${errorText}`)
-    }
-
-    const userInfo = await validateResponse.json()
-    console.log('Token validated successfully for:', userInfo.email)
 
     // Fetch Gmail messages
     console.log('Fetching Gmail messages...')
