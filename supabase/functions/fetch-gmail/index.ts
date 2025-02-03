@@ -42,27 +42,38 @@ serve(async (req) => {
       throw new Error('No access token provided')
     }
 
-    // Debug token state as received
-    console.log('Initial token analysis:', {
+    // Log initial token state
+    console.log('Initial token state:', {
       length: access_token.length,
-      hasBearer: access_token.toLowerCase().includes('bearer'),
       firstChars: access_token.substring(0, 10) + '...',
       lastChars: '...' + access_token.substring(access_token.length - 10),
+      hasBearer: access_token.toLowerCase().includes('bearer'),
+      isString: typeof access_token === 'string'
     })
 
     // Ensure clean token without any Bearer prefix
-    let cleanToken = access_token.replace(/^bearer\s+/i, '')
-    
-    // Validate token format
-    if (cleanToken.length < 50) {
-      throw new Error('Token appears invalid - too short')
+    let cleanToken = access_token
+    if (cleanToken.toLowerCase().startsWith('bearer ')) {
+      console.log('Removing Bearer prefix')
+      cleanToken = cleanToken.substring(7)
     }
 
-    console.log('Token preparation complete:', {
+    // Log token state after cleaning
+    console.log('Token after cleaning:', {
       originalLength: access_token.length,
       cleanLength: cleanToken.length,
-      sampleStart: cleanToken.substring(0, 10) + '...',
+      firstChars: cleanToken.substring(0, 10) + '...',
+      lastChars: '...' + cleanToken.substring(cleanToken.length - 10)
     })
+
+    // Validate token format
+    if (cleanToken.length < 50) {
+      console.error('Token validation failed - token too short:', {
+        length: cleanToken.length,
+        expectedMinLength: 50
+      })
+      throw new Error('Token appears invalid - too short')
+    }
 
     // Prepare headers with proper OAuth2 format
     const headers = {
@@ -72,7 +83,7 @@ serve(async (req) => {
     }
 
     // Validate token with userinfo endpoint
-    console.log('Attempting token validation...')
+    console.log('Attempting token validation with userinfo endpoint...')
     const validateResponse = await fetch(
       'https://www.googleapis.com/oauth2/v3/userinfo',
       { headers }
@@ -84,7 +95,7 @@ serve(async (req) => {
         status: validateResponse.status,
         statusText: validateResponse.statusText,
         error: errorText,
-        headers: Object.fromEntries(validateResponse.headers),
+        headers: Object.fromEntries(validateResponse.headers)
       })
       throw new Error(`Token validation failed: ${errorText}`)
     }
@@ -99,39 +110,22 @@ serve(async (req) => {
       { headers }
     )
 
-    const responseText = await response.text()
-    console.log('Gmail API Response:', {
-      status: response.status,
-      statusText: response.statusText,
-      headers: Object.fromEntries(response.headers),
-    })
-
     if (!response.ok) {
-      let errorMessage = 'Failed to fetch Gmail messages'
-      try {
-        const errorData = JSON.parse(responseText)
-        console.error('Gmail API error details:', errorData)
-        
-        if (errorData.error?.code === 403) {
-          errorMessage = 'Access denied. Please ensure Gmail access is enabled for your Google account.'
-        } else if (errorData.error?.code === 401) {
-          errorMessage = 'Authentication failed. Please reconnect your Gmail account.'
-        }
-        
-        throw new Error(errorMessage)
-      } catch (e) {
-        console.error('Error parsing Gmail API error response:', e)
-        throw new Error(errorMessage)
-      }
+      const errorText = await response.text()
+      console.error('Gmail API error:', {
+        status: response.status,
+        statusText: response.statusText,
+        error: errorText
+      })
+      throw new Error(`Failed to fetch Gmail messages: ${errorText}`)
     }
 
-    const { messages } = JSON.parse(responseText)
+    const { messages } = await response.json()
     console.log(`Found ${messages?.length || 0} messages`)
 
     // Fetch details for each message
     const messageDetails = await Promise.all(
       messages.map(async (msg: { id: string }) => {
-        console.log(`Fetching details for message ${msg.id}`)
         const msgResponse = await fetch(
           `https://gmail.googleapis.com/gmail/v1/users/me/messages/${msg.id}`,
           { headers }
@@ -142,9 +136,7 @@ serve(async (req) => {
           return null
         }
 
-        const messageData = await msgResponse.json()
-        console.log(`Successfully fetched details for message ${msg.id}`)
-        return messageData
+        return await msgResponse.json()
       })
     )
 
