@@ -42,48 +42,20 @@ serve(async (req) => {
       throw new Error('No access token provided')
     }
 
-    // Log initial token state
-    console.log('Initial token state:', {
+    // Log token details for debugging
+    console.log('Processing access token:', {
       length: access_token.length,
-      firstChars: access_token.substring(0, 10) + '...',
-      lastChars: '...' + access_token.substring(access_token.length - 10),
-      hasBearer: access_token.toLowerCase().includes('bearer'),
-      isString: typeof access_token === 'string'
+      sample: `${access_token.substring(0, 5)}...${access_token.substring(access_token.length - 5)}`
     })
 
-    // Ensure clean token without any Bearer prefix
-    let cleanToken = access_token
-    if (cleanToken.toLowerCase().startsWith('bearer ')) {
-      console.log('Removing Bearer prefix')
-      cleanToken = cleanToken.substring(7)
-    }
-
-    // Log token state after cleaning
-    console.log('Token after cleaning:', {
-      originalLength: access_token.length,
-      cleanLength: cleanToken.length,
-      firstChars: cleanToken.substring(0, 10) + '...',
-      lastChars: '...' + cleanToken.substring(cleanToken.length - 10)
-    })
-
-    // Validate token format
-    if (cleanToken.length < 50) {
-      console.error('Token validation failed - token too short:', {
-        length: cleanToken.length,
-        expectedMinLength: 50
-      })
-      throw new Error('Token appears invalid - too short')
-    }
-
-    // Prepare headers with proper OAuth2 format
+    // Prepare headers for Google API requests
     const headers = {
-      'Authorization': `Bearer ${cleanToken}`,
+      'Authorization': `Bearer ${access_token}`,
       'Accept': 'application/json',
-      'Content-Type': 'application/json',
     }
 
-    // Validate token with userinfo endpoint
-    console.log('Attempting token validation with userinfo endpoint...')
+    // First validate the token with userinfo endpoint
+    console.log('Validating token with userinfo endpoint...')
     const validateResponse = await fetch(
       'https://www.googleapis.com/oauth2/v3/userinfo',
       { headers }
@@ -93,11 +65,9 @@ serve(async (req) => {
       const errorText = await validateResponse.text()
       console.error('Token validation failed:', {
         status: validateResponse.status,
-        statusText: validateResponse.statusText,
-        error: errorText,
-        headers: Object.fromEntries(validateResponse.headers)
+        text: errorText
       })
-      throw new Error(`Token validation failed: ${errorText}`)
+      throw new Error('Invalid access token. Please reconnect your Gmail account.')
     }
 
     const userInfo = await validateResponse.json()
@@ -114,10 +84,9 @@ serve(async (req) => {
       const errorText = await response.text()
       console.error('Gmail API error:', {
         status: response.status,
-        statusText: response.statusText,
-        error: errorText
+        text: errorText
       })
-      throw new Error(`Failed to fetch Gmail messages: ${errorText}`)
+      throw new Error('Failed to fetch Gmail messages. Please try reconnecting your Gmail account.')
     }
 
     const { messages } = await response.json()
@@ -165,7 +134,7 @@ serve(async (req) => {
     return new Response(
       JSON.stringify({
         error: error.message,
-        detail: 'Please try disconnecting and reconnecting your Gmail account. Make sure to grant all required permissions.'
+        detail: 'Please try disconnecting and reconnecting your Gmail account.'
       }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
