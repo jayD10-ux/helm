@@ -58,20 +58,17 @@ const GitHubPanel = () => {
     enabled: !!integration?.access_token,
     queryFn: async () => {
       console.log('Fetching GitHub data...');
-      const { data: sessionData } = await supabase.auth.getSession();
-      const response = await fetch(`${window.location.origin}/functions/v1/fetch-github-data`, {
+      const { data, error } = await supabase.functions.invoke('fetch-github-data', {
         headers: {
-          Authorization: `Bearer ${sessionData.session?.access_token}`,
+          Authorization: `Bearer ${integration.access_token}`,
         },
       });
       
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error('GitHub data fetch error:', errorText);
-        throw new Error(errorText);
+      if (error) {
+        console.error('GitHub data fetch error:', error);
+        throw error;
       }
       
-      const data = await response.json();
       console.log('GitHub data fetched successfully');
       return data as GitHubData;
     }
