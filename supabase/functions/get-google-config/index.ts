@@ -16,11 +16,12 @@ serve(async (req) => {
     const origin = req.headers.get('origin') || '';
     console.log('Request origin:', origin);
 
-    // Updated scopes to include Gmail access
+    // Updated scopes to include full Gmail access
     const scopes = [
       'https://www.googleapis.com/auth/userinfo.email',
       'https://www.googleapis.com/auth/userinfo.profile',
       'https://www.googleapis.com/auth/gmail.readonly',
+      'https://mail.google.com/',
       'openid'
     ];
 
