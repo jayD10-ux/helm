@@ -36,32 +36,28 @@ serve(async (req) => {
 
     console.log('User authenticated:', user.id)
 
-    // Log the entire request for debugging
+    // Parse and validate request body
     const requestBody = await req.json()
-    console.log('Full request body:', JSON.stringify(requestBody, null, 2))
+    console.log('Request body received:', requestBody)
 
-    // Validate request body structure
     if (!requestBody || typeof requestBody !== 'object') {
       throw new Error('Invalid request body format')
     }
 
-    const { access_token } = requestBody
+    let { access_token } = requestBody
     
-    // Detailed token validation logging
     if (!access_token) {
       console.error('Missing access_token in request body')
       throw new Error('No access token provided')
     }
 
-    if (typeof access_token !== 'string') {
-      console.error('Invalid access_token type:', typeof access_token)
-      throw new Error('Access token must be a string')
-    }
-
-    console.log('Access token validation:', {
+    // Clean the token - remove any existing 'Bearer ' prefix
+    access_token = access_token.replace(/^Bearer\s+/i, '').trim()
+    
+    console.log('Token validation:', {
       length: access_token.length,
-      type: typeof access_token,
-      sample: `${access_token.substring(0, 5)}...${access_token.substring(access_token.length - 5)}`
+      firstChars: access_token.substring(0, 5),
+      lastChars: access_token.substring(access_token.length - 5)
     })
 
     // Prepare headers for Google API requests
@@ -81,14 +77,13 @@ serve(async (req) => {
       const errorText = await validateResponse.text()
       console.error('Token validation failed:', {
         status: validateResponse.status,
-        text: errorText,
-        requestHeaders: headers
+        text: errorText
       })
-      throw new Error('Invalid access token. Please reconnect your Gmail account.')
+      throw new Error(`Invalid access token (${validateResponse.status}): ${errorText}`)
     }
 
     const userInfo = await validateResponse.json()
-    console.log('Token validated for email:', userInfo.email)
+    console.log('Token validated successfully for:', userInfo.email)
 
     // Fetch Gmail messages
     console.log('Fetching Gmail messages...')
@@ -101,10 +96,9 @@ serve(async (req) => {
       const errorText = await response.text()
       console.error('Gmail API error:', {
         status: response.status,
-        text: errorText,
-        requestHeaders: headers
+        text: errorText
       })
-      throw new Error('Failed to fetch Gmail messages. Please try reconnecting your Gmail account.')
+      throw new Error(`Failed to fetch Gmail messages (${response.status}): ${errorText}`)
     }
 
     const { messages } = await response.json()
