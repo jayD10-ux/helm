@@ -6,57 +6,38 @@ const corsHeaders = {
 }
 
 serve(async (req) => {
-  console.log('Received request for Figma configuration');
-
   if (req.method === 'OPTIONS') {
-    console.log('Handling CORS preflight request');
     return new Response(null, { headers: corsHeaders })
   }
 
   try {
-    console.log('Attempting to retrieve Figma client ID from environment');
-    const clientId = Deno.env.get('FIGMA_CLIENT_ID');
-    
-    console.log('Environment variables status:', {
-      hasClientId: !!clientId,
-      clientIdLength: clientId?.length,
-    });
-
+    const clientId = Deno.env.get('FIGMA_CLIENT_ID')
     if (!clientId) {
-      console.error('Missing required Figma credentials');
-      throw new Error('Figma credentials not properly configured');
+      throw new Error('Missing Figma client ID')
     }
 
-    // Figma scopes for reading comments
-    const scopes = 'files:read';
-    console.log('Using scopes:', scopes);
+    // Update scopes to include necessary permissions
+    const scopes = [
+      'files:read',
+      'comments:read',
+      'file_read',
+      'comments:write'
+    ].join(' ')
 
-    const response = {
-      clientId,
-      scopes,
-    };
-    
-    console.log('Preparing successful response with config');
     return new Response(
-      JSON.stringify(response),
-      { 
+      JSON.stringify({
+        clientId,
+        scopes,
+      }),
+      {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         status: 200,
       },
     )
   } catch (error) {
-    console.error('Figma configuration error:', {
-      error: error.message,
-      stack: error.stack,
-      type: error.constructor.name
-    });
-
     return new Response(
-      JSON.stringify({ 
-        error: error.message,
-        details: 'Failed to retrieve Figma configuration. Please check Edge Function logs.'
-      }),
-      { 
+      JSON.stringify({ error: error.message }),
+      {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         status: 400,
       },

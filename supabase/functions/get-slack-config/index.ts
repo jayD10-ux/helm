@@ -6,62 +6,43 @@ const corsHeaders = {
 }
 
 serve(async (req) => {
-  console.log('Received request for Slack configuration');
-
   if (req.method === 'OPTIONS') {
-    console.log('Handling CORS preflight request');
     return new Response(null, { headers: corsHeaders })
   }
 
   try {
-    console.log('Attempting to retrieve Slack client ID and secret from environment');
-    const clientId = Deno.env.get('SLACK_CLIENT_ID');
-    const clientSecret = Deno.env.get('SLACK_CLIENT_SECRET');
-    
-    console.log('Environment variables status:', {
-      hasClientId: !!clientId,
-      hasClientSecret: !!clientSecret,
-      clientIdLength: clientId?.length,
-    });
-
-    if (!clientId || !clientSecret) {
-      console.error('Missing required Slack credentials:', {
-        hasClientId: !!clientId,
-        hasClientSecret: !!clientSecret,
-      });
-      throw new Error('Slack credentials not properly configured');
+    const clientId = Deno.env.get('SLACK_CLIENT_ID')
+    if (!clientId) {
+      throw new Error('Missing Slack client ID')
     }
 
-    // Using basic scopes for initial setup
-    const scopes = 'chat:write,channels:read';
-    console.log('Using scopes:', scopes);
+    // Update scopes to include necessary permissions
+    const scopes = [
+      'channels:read',
+      'channels:history',
+      'groups:read',
+      'groups:history',
+      'chat:write',
+      'im:history',
+      'im:read',
+      'mpim:history',
+      'mpim:read'
+    ].join(' ')
 
-    const response = {
-      clientId,
-      scopes,
-    };
-    
-    console.log('Preparing successful response with config');
     return new Response(
-      JSON.stringify(response),
-      { 
+      JSON.stringify({
+        clientId,
+        scopes,
+      }),
+      {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         status: 200,
       },
     )
   } catch (error) {
-    console.error('Slack configuration error:', {
-      error: error.message,
-      stack: error.stack,
-      type: error.constructor.name
-    });
-
     return new Response(
-      JSON.stringify({ 
-        error: error.message,
-        details: 'Failed to retrieve Slack configuration. Please check Edge Function logs.'
-      }),
-      { 
+      JSON.stringify({ error: error.message }),
+      {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         status: 400,
       },
