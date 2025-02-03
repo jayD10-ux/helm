@@ -4,14 +4,18 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Content-Type': 'application/json'
 }
 
 serve(async (req) => {
+  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders })
+    return new Response(JSON.stringify({ message: 'ok' }), { headers: corsHeaders })
   }
 
   try {
+    console.log('Starting Slack messages fetch...');
+    
     const supabaseClient = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_ANON_KEY') ?? '',
@@ -29,10 +33,22 @@ serve(async (req) => {
       .eq('provider', 'slack')
       .single()
 
-    if (integrationError || !integrations) {
-      throw new Error('No Slack integration found')
+    if (integrationError) {
+      console.error('Integration fetch error:', integrationError);
+      return new Response(
+        JSON.stringify({ 
+          error: 'No Slack integration found',
+          code: 'INTEGRATION_NOT_FOUND'
+        }),
+        {
+          headers: corsHeaders,
+          status: 404,
+        }
+      )
     }
 
+    console.log('Fetching messages from Slack API...');
+    
     // Fetch messages from Slack
     const response = await fetch('https://slack.com/api/conversations.list', {
       headers: {
@@ -42,36 +58,92 @@ serve(async (req) => {
     })
 
     if (!response.ok) {
-      throw new Error('Failed to fetch Slack channels')
+      console.error('Slack API error:', await response.text());
+      return new Response(
+        JSON.stringify({ 
+          error: 'Failed to fetch Slack channels',
+          code: 'SLACK_API_ERROR'
+        }),
+        {
+          headers: corsHeaders,
+          status: response.status,
+        }
+      )
     }
 
     const channelsData = await response.json()
     
     if (!channelsData.ok) {
-      throw new Error(channelsData.error || 'Failed to fetch Slack channels')
+      console.error('Slack API error:', channelsData.error);
+      return new Response(
+        JSON.stringify({ 
+          error: channelsData.error || 'Failed to fetch Slack channels',
+          code: 'SLACK_API_ERROR'
+        }),
+        {
+          headers: corsHeaders,
+          status: 400,
+        }
+      )
+    }
+
+    if (!channelsData.channels || channelsData.channels.length === 0) {
+      console.log('No channels found');
+      return new Response(
+        JSON.stringify({ messages: [] }),
+        {
+          headers: corsHeaders,
+          status: 200,
+        }
+      )
     }
 
     // Get the first channel's messages
     const channel = channelsData.channels[0]
-    const messagesResponse = await fetch(`https://slack.com/api/conversations.history?channel=${channel.id}`, {
-      headers: {
-        'Authorization': `Bearer ${integrations.access_token}`,
-        'Content-Type': 'application/json',
-      },
-    })
+    console.log(`Fetching messages from channel: ${channel.name}`);
+    
+    const messagesResponse = await fetch(
+      `https://slack.com/api/conversations.history?channel=${channel.id}&limit=10`,
+      {
+        headers: {
+          'Authorization': `Bearer ${integrations.access_token}`,
+          'Content-Type': 'application/json',
+        },
+      }
+    )
 
     if (!messagesResponse.ok) {
-      throw new Error('Failed to fetch Slack messages')
+      console.error('Slack messages API error:', await messagesResponse.text());
+      return new Response(
+        JSON.stringify({ 
+          error: 'Failed to fetch Slack messages',
+          code: 'SLACK_API_ERROR'
+        }),
+        {
+          headers: corsHeaders,
+          status: messagesResponse.status,
+        }
+      )
     }
 
     const messagesData = await messagesResponse.json()
     
     if (!messagesData.ok) {
-      throw new Error(messagesData.error || 'Failed to fetch Slack messages')
+      console.error('Slack messages API error:', messagesData.error);
+      return new Response(
+        JSON.stringify({ 
+          error: messagesData.error || 'Failed to fetch Slack messages',
+          code: 'SLACK_API_ERROR'
+        }),
+        {
+          headers: corsHeaders,
+          status: 400,
+        }
+      )
     }
 
     // Format messages
-    const messages = messagesData.messages.map((msg: any) => ({
+    const messages = (messagesData.messages || []).map((msg: any) => ({
       id: msg.ts,
       text: msg.text,
       user: msg.user,
@@ -79,23 +151,26 @@ serve(async (req) => {
       channel: channel.name,
     }))
 
+    console.log(`Successfully fetched ${messages.length} messages`);
+
     return new Response(
       JSON.stringify({ messages }),
       {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        headers: corsHeaders,
         status: 200,
       },
     )
 
   } catch (error) {
-    console.error('Slack fetch error:', error)
+    console.error('Slack fetch error:', error);
     return new Response(
       JSON.stringify({
-        error: error.message || 'Failed to fetch Slack messages',
+        error: error instanceof Error ? error.message : 'Failed to fetch Slack messages',
+        code: 'UNKNOWN_ERROR'
       }),
       {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 400,
+        headers: corsHeaders,
+        status: 500,
       },
     )
   }

@@ -29,10 +29,7 @@ async function refreshGoogleToken(refresh_token: string) {
   if (!response.ok) {
     const error = await response.text();
     console.error('Token refresh failed:', error);
-    throw new Error(JSON.stringify({
-      code: 'TOKEN_REFRESH_FAILED',
-      message: 'Failed to refresh access token'
-    }));
+    throw new Error('Failed to refresh access token');
   }
 
   const data = await response.json();
@@ -43,7 +40,6 @@ async function refreshGoogleToken(refresh_token: string) {
 }
 
 serve(async (req) => {
-  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response(JSON.stringify({ message: 'ok' }), { headers: corsHeaders });
   }
@@ -200,7 +196,6 @@ serve(async (req) => {
       const error = await gmailResponse.text()
       console.error('Gmail API error:', error)
       
-      // Check if token is invalid
       if (gmailResponse.status === 401) {
         return new Response(
           JSON.stringify({ 
@@ -230,15 +225,12 @@ serve(async (req) => {
     console.log(`Found ${messages?.length || 0} messages`)
 
     if (!messages || !Array.isArray(messages)) {
-      console.error('No messages array in response')
+      console.log('No messages found')
       return new Response(
-        JSON.stringify({ 
-          error: 'No emails found',
-          code: 'NO_MESSAGES'
-        }),
+        JSON.stringify({ emails: [] }),
         {
           headers: corsHeaders,
-          status: 404,
+          status: 200,
         }
       )
     }
@@ -275,9 +267,12 @@ serve(async (req) => {
       .filter(msg => msg !== null)
       .map(msg => ({
         id: msg.id,
-        subject: msg.payload.headers.find((h: {name: string}) => h.name.toLowerCase() === 'subject')?.value || 'No Subject',
-        from: msg.payload.headers.find((h: {name: string}) => h.name.toLowerCase() === 'from')?.value || 'Unknown',
-        date: msg.payload.headers.find((h: {name: string}) => h.name.toLowerCase() === 'date')?.value,
+        subject: msg.payload.headers.find((h: {name: string}) => 
+          h.name.toLowerCase() === 'subject')?.value || 'No Subject',
+        from: msg.payload.headers.find((h: {name: string}) => 
+          h.name.toLowerCase() === 'from')?.value || 'Unknown',
+        date: msg.payload.headers.find((h: {name: string}) => 
+          h.name.toLowerCase() === 'date')?.value,
         snippet: msg.snippet,
       }))
 
@@ -295,8 +290,7 @@ serve(async (req) => {
     
     return new Response(
       JSON.stringify({ 
-        error: 'An unexpected error occurred',
-        detail: error instanceof Error ? error.message : String(error),
+        error: error instanceof Error ? error.message : 'An unexpected error occurred',
         code: 'UNKNOWN_ERROR'
       }),
       {
