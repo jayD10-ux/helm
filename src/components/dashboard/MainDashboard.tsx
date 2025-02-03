@@ -107,7 +107,7 @@ const MainDashboard = () => {
         return;
       }
 
-      if (!configData?.clientId || !configData?.redirectUri) {
+      if (!configData?.clientId) {
         console.error('Invalid config data:', configData);
         toast({
           title: "Configuration Error",
@@ -140,6 +140,12 @@ const MainDashboard = () => {
           `access_type=offline&` +
           `state=google&` +
           `prompt=consent`;
+      } else if (provider.toLowerCase() === 'slack') {
+        authUrl = `https://slack.com/oauth/v2/authorize?` +
+          `client_id=${configData.clientId}&` +
+          `redirect_uri=${encodeURIComponent(redirectUri)}&` +
+          `scope=${encodeURIComponent(configData.scopes)}&` +
+          `state=slack`;
       }
       
       console.log(`Full ${provider} auth URL:`, authUrl);

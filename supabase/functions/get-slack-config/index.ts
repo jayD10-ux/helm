@@ -14,18 +14,27 @@ serve(async (req) => {
   }
 
   try {
-    console.log('Attempting to retrieve Slack client ID from environment');
+    console.log('Attempting to retrieve Slack client ID and secret from environment');
     const clientId = Deno.env.get('SLACK_CLIENT_ID');
-    console.log('Retrieved client ID:', clientId ? 'present (length: ' + clientId.length + ')' : 'missing');
+    const clientSecret = Deno.env.get('SLACK_CLIENT_SECRET');
+    
+    console.log('Environment variables status:', {
+      hasClientId: !!clientId,
+      hasClientSecret: !!clientSecret,
+      clientIdLength: clientId?.length,
+    });
 
-    // Using more basic scopes for initial setup
+    if (!clientId || !clientSecret) {
+      console.error('Missing required Slack credentials:', {
+        hasClientId: !!clientId,
+        hasClientSecret: !!clientSecret,
+      });
+      throw new Error('Slack credentials not properly configured');
+    }
+
+    // Using basic scopes for initial setup
     const scopes = 'chat:write,channels:read';
     console.log('Using scopes:', scopes);
-
-    if (!clientId) {
-      console.error('Slack client ID is not configured in environment');
-      throw new Error('Slack client ID not configured');
-    }
 
     const response = {
       clientId,
