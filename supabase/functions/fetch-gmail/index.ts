@@ -42,20 +42,21 @@ serve(async (req) => {
       throw new Error('No access token provided');
     }
 
-    console.log('Starting Gmail API request with access token');
+    console.log('Starting Gmail API request...');
 
-    // Log token format for debugging (first few characters)
-    console.log('Token format check:', {
-      length: access_token.length,
-      prefix: access_token.substring(0, 10) + '...',
+    // Clean and format the token
+    const cleanToken = access_token.replace(/^Bearer\s+/i, '');
+    console.log('Token preparation:', {
+      originalLength: access_token.length,
+      cleanedLength: cleanToken.length,
+      wasBearer: access_token.startsWith('Bearer'),
+      sample: cleanToken.substring(0, 10) + '...',
     });
 
-    // Properly format the Bearer token
-    const bearerToken = access_token.startsWith('Bearer ') 
-      ? access_token 
-      : `Bearer ${access_token}`;
+    const bearerToken = `Bearer ${cleanToken}`;
 
-    // First, validate the token by making a simple userinfo request
+    // Validate token with userinfo endpoint
+    console.log('Validating token with userinfo endpoint...');
     const validateResponse = await fetch(
       'https://www.googleapis.com/oauth2/v2/userinfo',
       {
@@ -67,15 +68,20 @@ serve(async (req) => {
     );
 
     if (!validateResponse.ok) {
-      const validationError = await validateResponse.text();
-      console.error('Token validation failed:', validationError);
-      throw new Error(`Token validation failed: ${validationError}`);
+      const errorText = await validateResponse.text();
+      console.error('Token validation failed:', {
+        status: validateResponse.status,
+        statusText: validateResponse.statusText,
+        error: errorText,
+      });
+      throw new Error(`Token validation failed: ${errorText}`);
     }
 
     const userInfo = await validateResponse.json();
-    console.log('Token validated successfully for email:', userInfo.email);
+    console.log('Token validated for email:', userInfo.email);
 
     // Fetch Gmail messages
+    console.log('Fetching Gmail messages...');
     const response = await fetch(
       'https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=10',
       {
@@ -86,10 +92,12 @@ serve(async (req) => {
       }
     );
 
-    // Log the full response for debugging
     const responseText = await response.text();
-    console.log('Gmail API Response Status:', response.status);
-    console.log('Gmail API Response Headers:', Object.fromEntries(response.headers));
+    console.log('Gmail API Response:', {
+      status: response.status,
+      statusText: response.statusText,
+      headers: Object.fromEntries(response.headers),
+    });
 
     if (!response.ok) {
       let errorMessage = 'Failed to fetch Gmail messages';
@@ -110,7 +118,6 @@ serve(async (req) => {
       }
     }
 
-    // Parse the successful response
     const { messages } = JSON.parse(responseText);
     console.log(`Found ${messages?.length || 0} messages`);
 
