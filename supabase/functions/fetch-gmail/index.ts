@@ -7,25 +7,21 @@ const corsHeaders = {
 }
 
 serve(async (req) => {
-  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders })
   }
 
   try {
-    // Initialize Supabase client
     const supabaseClient = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_ANON_KEY') ?? ''
     )
 
-    // Get the session from the request
     const authHeader = req.headers.get('Authorization')
     if (!authHeader) {
       throw new Error('No authorization header')
     }
 
-    // Get the user from the session
     const { data: { user }, error: userError } = await supabaseClient.auth.getUser(
       authHeader.replace('Bearer ', '')
     )
@@ -36,7 +32,6 @@ serve(async (req) => {
 
     console.log('User authenticated:', user.id)
 
-    // Parse and validate request body
     const requestBody = await req.json()
     console.log('Request body received:', requestBody)
 
@@ -51,32 +46,45 @@ serve(async (req) => {
       throw new Error('No access token provided')
     }
 
-    // Prepare headers for Google API requests
+    console.log('Attempting to fetch Gmail messages...')
+    
     const headers = {
       'Authorization': `Bearer ${access_token}`,
       'Accept': 'application/json',
     }
 
-    // Fetch Gmail messages
-    console.log('Fetching Gmail messages...')
     const response = await fetch(
       'https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=10',
       { headers }
     )
 
+    const responseText = await response.text()
+    console.log('Gmail API response status:', response.status)
+
     if (!response.ok) {
-      const errorText = await response.text()
       console.error('Gmail API error:', {
         status: response.status,
-        text: errorText
+        text: responseText
       })
-      throw new Error(`Failed to fetch Gmail messages (${response.status}): ${errorText}`)
+      throw new Error(`Gmail API error (${response.status}): ${responseText}`)
     }
 
-    const { messages } = await response.json()
+    let data;
+    try {
+      data = JSON.parse(responseText)
+    } catch (e) {
+      console.error('Failed to parse Gmail API response:', responseText)
+      throw new Error('Invalid response from Gmail API')
+    }
+
+    const { messages } = data
     console.log(`Found ${messages?.length || 0} messages`)
 
-    // Fetch details for each message
+    if (!messages || !Array.isArray(messages)) {
+      console.error('No messages array in response:', data)
+      throw new Error('No messages found in Gmail response')
+    }
+
     const messageDetails = await Promise.all(
       messages.map(async (msg: { id: string }) => {
         const msgResponse = await fetch(
@@ -93,7 +101,6 @@ serve(async (req) => {
       })
     )
 
-    // Filter out any failed message fetches and format the data
     const formattedEmails = messageDetails
       .filter(msg => msg !== null)
       .map(msg => ({
@@ -118,7 +125,7 @@ serve(async (req) => {
     return new Response(
       JSON.stringify({
         error: error.message,
-        detail: 'Please check the logs and try reconnecting your Gmail account.'
+        detail: 'Failed to fetch Gmail messages. Please try reconnecting your Gmail account.'
       }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },

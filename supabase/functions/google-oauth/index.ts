@@ -8,16 +8,7 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-interface GoogleTokenResponse {
-  access_token: string;
-  refresh_token?: string;
-  expires_in: number;
-  scope: string;
-  token_type: string;
-}
-
 serve(async (req) => {
-  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
@@ -30,16 +21,12 @@ serve(async (req) => {
     console.log('Received redirect URI:', redirectUri);
     
     if (!code) {
-      console.error('No authorization code provided in request');
       throw new Error('No authorization code provided');
     }
 
-    // Ensure the redirect URI is properly formatted
     const cleanRedirectUri = new URL(redirectUri).toString().replace(/\/$/, '');
-    console.log('Cleaned redirect URI:', cleanRedirectUri);
-
-    // Exchange the authorization code for tokens
-    console.log('Sending token exchange request to Google...');
+    
+    console.log('Exchanging code for tokens...');
     const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
       method: 'POST',
       headers: {
@@ -51,24 +38,27 @@ serve(async (req) => {
         client_secret: GOOGLE_CLIENT_SECRET,
         redirect_uri: cleanRedirectUri,
         grant_type: 'authorization_code',
+        scope: 'https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile',
       }),
     });
 
+    const responseText = await tokenResponse.text();
     console.log('Token response status:', tokenResponse.status);
 
-    if (!tokenResponse.ok) {
-      const errorData = await tokenResponse.text();
-      console.error('Token exchange failed:', errorData);
-      throw new Error(`Failed to exchange code for access token: ${errorData}`);
+    let tokens;
+    try {
+      tokens = JSON.parse(responseText);
+    } catch (e) {
+      console.error('Failed to parse token response:', responseText);
+      throw new Error('Invalid token response from Google');
     }
 
-    const tokens: GoogleTokenResponse = await tokenResponse.json();
-    console.log('Successfully received tokens');
-
-    // Validate the tokens
-    if (!tokens.access_token) {
-      throw new Error('No access token received from Google');
+    if (!tokenResponse.ok || !tokens.access_token) {
+      console.error('Token exchange failed:', responseText);
+      throw new Error(`Failed to exchange code for access token: ${responseText}`);
     }
+
+    console.log('Successfully received tokens with scopes:', tokens.scope);
 
     // Verify the token with Google's userinfo endpoint
     const userinfoResponse = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
@@ -83,7 +73,8 @@ serve(async (req) => {
       throw new Error('Invalid access token received from Google');
     }
 
-    console.log('Token validated successfully with userinfo endpoint');
+    const userInfo = await userinfoResponse.json();
+    console.log('Token validated successfully for user:', userInfo.email);
 
     // Calculate token expiration
     const expiresAt = new Date();
