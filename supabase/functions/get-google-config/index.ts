@@ -1,52 +1,51 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-
-const GOOGLE_CLIENT_ID = Deno.env.get('GOOGLE_CLIENT_ID')!;
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
+}
 
 serve(async (req) => {
+  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders });
+    return new Response(null, { headers: corsHeaders })
   }
 
   try {
-    const origin = req.headers.get('origin') || '';
-    console.log('Request origin:', origin);
+    const clientId = Deno.env.get('GOOGLE_CLIENT_ID')
+    const clientSecret = Deno.env.get('GOOGLE_CLIENT_SECRET')
+    
+    if (!clientId || !clientSecret) {
+      throw new Error('Missing Google OAuth configuration')
+    }
 
-    // Updated scopes to include full Gmail access
+    // Updated scopes to include both readonly and full access
     const scopes = [
-      'https://www.googleapis.com/auth/userinfo.email',
-      'https://www.googleapis.com/auth/userinfo.profile',
       'https://www.googleapis.com/auth/gmail.readonly',
       'https://mail.google.com/',
-      'openid'
-    ];
-
-    const redirectUri = `${origin}/oauth/callback`;
-    console.log('Constructed redirect URI:', redirectUri);
+      'email',
+      'profile'
+    ].join(' ')
 
     return new Response(
       JSON.stringify({
-        clientId: GOOGLE_CLIENT_ID,
-        redirectUri,
-        scopes: scopes.join(' '),
+        clientId,
+        scopes,
+        redirectUri: `${new URL(req.url).origin}/oauth/callback`
       }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         status: 200,
       },
-    );
+    )
   } catch (error) {
-    console.error('Error in get-google-config function:', error);
+    console.error('Error in get-google-config function:', error)
     return new Response(
       JSON.stringify({ error: error.message }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         status: 500,
       },
-    );
+    )
   }
-});
+})
