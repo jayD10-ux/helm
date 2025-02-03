@@ -1,14 +1,16 @@
-import { MessageSquare, Mail, Github, Loader } from "lucide-react";
+import { MessageSquare, Mail, Loader, RefreshCw } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
+import { useState } from "react";
 
 const MessagesPanel = () => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   // Query to check if Google integration exists
   const { data: integrations, isLoading: isLoadingIntegrations } = useQuery({
@@ -25,7 +27,12 @@ const MessagesPanel = () => {
   });
 
   // Query to fetch Gmail messages if integration exists
-  const { data: emails, isLoading: isLoadingEmails, error: emailError } = useQuery({
+  const { 
+    data: emails, 
+    isLoading: isLoadingEmails, 
+    error: emailError,
+    refetch: refetchEmails
+  } = useQuery({
     queryKey: ['gmail-messages'],
     queryFn: async () => {
       if (!integrations?.[0]?.access_token) {
@@ -71,6 +78,26 @@ const MessagesPanel = () => {
     }
   };
 
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    try {
+      await refetchEmails();
+      toast({
+        title: "Success",
+        description: "Emails refreshed successfully",
+      });
+    } catch (error) {
+      console.error('Refresh error:', error);
+      toast({
+        title: "Error",
+        description: "Failed to refresh emails. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
+
   const isLoading = isLoadingIntegrations || isLoadingEmails;
   const hasGmailIntegration = !!integrations?.[0]?.access_token;
 
@@ -109,7 +136,20 @@ const MessagesPanel = () => {
       <div className="h-full w-full p-4">
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-xl font-semibold">Messages</h2>
-          <MessageSquare className="w-5 h-5 text-muted-foreground" />
+          <div className="flex items-center space-x-2">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={handleRefresh}
+              disabled={isRefreshing}
+              className="h-8 w-8"
+            >
+              <RefreshCw 
+                className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} 
+              />
+            </Button>
+            <MessageSquare className="w-5 h-5 text-muted-foreground" />
+          </div>
         </div>
         <Card className="p-4 bg-destructive/10">
           <div className="flex flex-col space-y-4">
@@ -135,6 +175,17 @@ const MessagesPanel = () => {
       <div className="flex items-center justify-between mb-6">
         <h2 className="text-xl font-semibold">Messages</h2>
         <div className="flex items-center space-x-2">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={handleRefresh}
+            disabled={isRefreshing}
+            className="h-8 w-8"
+          >
+            <RefreshCw 
+              className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} 
+            />
+          </Button>
           <Button 
             variant="outline" 
             size="sm"

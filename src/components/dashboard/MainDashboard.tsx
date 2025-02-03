@@ -1,4 +1,4 @@
-import { BarChart, Users, DollarSign, Calendar, Github, Mail, MessageSquare, LogOut, Loader } from "lucide-react";
+import { BarChart, Users, DollarSign, Github, Mail, MessageSquare, LogOut } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
@@ -6,6 +6,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import GitHubPanel from "./GitHubPanel";
+import IntegrationCard from "./IntegrationCard";
 
 interface Integration {
   id: string;
@@ -45,7 +46,6 @@ const MainDashboard = () => {
     if (isLoadingIntegrations) return "Loading...";
     const integration = integrations?.find(i => i.provider.toLowerCase() === provider.toLowerCase());
     
-    // Add additional validation for Gmail integration
     if (provider.toLowerCase() === 'google' && integration) {
       if (!integration.access_token) {
         return "Token Missing";
@@ -209,44 +209,18 @@ const MainDashboard = () => {
               const hasError = status === "Token Missing";
               
               return (
-                <Card 
+                <IntegrationCard
                   key={integration.title}
-                  className="p-6 hover:shadow-lg transition-shadow duration-200"
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center space-x-4">
-                      <integration.icon className="w-6 h-6 text-muted-foreground" />
-                      <div>
-                        <h3 className="font-medium">{integration.title}</h3>
-                        <div className="flex items-center space-x-2">
-                          {isLoadingIntegrations ? (
-                            <Loader className="w-4 h-4 animate-spin text-muted-foreground" />
-                          ) : (
-                            <p className={`text-sm ${
-                              isConnected 
-                                ? "text-green-500"
-                                : hasError
-                                  ? "text-red-500"
-                                  : "text-muted-foreground"
-                            }`}>
-                              {status}
-                            </p>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                    <Button
-                      variant={isConnected ? "outline" : "default"}
-                      size="sm"
-                      onClick={() => isConnected 
-                        ? handleDisconnect(integration.provider)
-                        : handleOAuth(integration.provider)
-                      }
-                    >
-                      {isConnected ? "Disconnect" : "Connect"}
-                    </Button>
-                  </div>
-                </Card>
+                  title={integration.title}
+                  provider={integration.provider}
+                  icon={integration.icon}
+                  status={status}
+                  isLoading={isLoadingIntegrations}
+                  isConnected={isConnected}
+                  hasError={hasError}
+                  onConnect={() => handleOAuth(integration.provider)}
+                  onDisconnect={() => handleDisconnect(integration.provider)}
+                />
               );
             })}
           </div>
