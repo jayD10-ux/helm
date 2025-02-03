@@ -1,5 +1,4 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -38,12 +37,16 @@ serve(async (req) => {
       throw new Error('GitHub OAuth credentials not configured');
     }
 
+    // Ensure the redirect URI is properly formatted
+    const cleanRedirectUri = new URL(redirectUri).toString().replace(/\/$/, '');
+    console.log('Cleaned redirect URI:', cleanRedirectUri);
+
     // Prepare the token exchange request
     const tokenRequest = {
       client_id: clientId,
       client_secret: clientSecret,
       code: code,
-      redirect_uri: redirectUri
+      redirect_uri: cleanRedirectUri
     };
 
     console.log('Sending token exchange request to GitHub...');

@@ -34,6 +34,10 @@ serve(async (req) => {
       throw new Error('No authorization code provided');
     }
 
+    // Ensure the redirect URI is properly formatted
+    const cleanRedirectUri = new URL(redirectUri).toString().replace(/\/$/, '');
+    console.log('Cleaned redirect URI:', cleanRedirectUri);
+
     // Exchange the authorization code for tokens
     console.log('Sending token exchange request to Google...');
     const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
@@ -45,7 +49,7 @@ serve(async (req) => {
         code,
         client_id: GOOGLE_CLIENT_ID,
         client_secret: GOOGLE_CLIENT_SECRET,
-        redirect_uri: redirectUri,
+        redirect_uri: cleanRedirectUri,
         grant_type: 'authorization_code',
       }),
     });
