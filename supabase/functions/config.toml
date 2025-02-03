@@ -1,0 +1,53 @@
+# project_id should be the first line
+project_id = "lsrzrcrfhgsuwyqkgfke"
+
+[global]
+node_version = "20"
+
+[[fetch-github-data]]
+name = "fetch-github-data"
+verify_jwt = true
+
+[[fetch-gmail]]
+name = "fetch-gmail"
+verify_jwt = true
+
+[[fetch-slack]]
+name = "fetch-slack"
+verify_jwt = true
+
+[[get-github-config]]
+name = "get-github-config"
+verify_jwt = true
+
+[[get-google-config]]
+name = "get-google-config"
+verify_jwt = true
+
+[[get-slack-config]]
+name = "get-slack-config"
+verify_jwt = true
+
+[[github-oauth]]
+name = "github-oauth"
+verify_jwt = true
+
+[[google-oauth]]
+name = "google-oauth"
+verify_jwt = true
+
+[[slack-oauth]]
+name = "slack-oauth"
+verify_jwt = true
+
+[[get-figma-config]]
+name = "get-figma-config"
+verify_jwt = true
+
+[[figma-oauth]]
+name = "figma-oauth"
+verify_jwt = true
+
+[[fetch-figma]]
+name = "fetch-figma"
+verify_jwt = true
