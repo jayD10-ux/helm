@@ -13,19 +13,18 @@ serve(async (req) => {
   }
 
   try {
-    // Get the origin from request headers
     const origin = req.headers.get('origin') || '';
     console.log('Request origin:', origin);
 
-    // Using only basic profile scopes that don't require verification
+    // Updated scopes to include Gmail access
     const scopes = [
       'https://www.googleapis.com/auth/userinfo.email',
       'https://www.googleapis.com/auth/userinfo.profile',
+      'https://www.googleapis.com/auth/gmail.readonly',
       'openid'
     ];
 
-    // Construct the redirect URI
-    const redirectUri = `${origin}/oauth-callback.html`;
+    const redirectUri = `${origin}/oauth/callback`;
     console.log('Constructed redirect URI:', redirectUri);
 
     return new Response(
