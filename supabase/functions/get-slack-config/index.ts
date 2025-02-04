@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
 const MERGE_API_KEY = Deno.env.get('MERGE_API_KEY')!;
 
@@ -16,7 +17,37 @@ serve(async (req) => {
   }
 
   try {
-    console.log('Getting Slack OAuth configuration from Merge.dev...');
+    console.log('Starting Slack OAuth configuration process...');
+
+    // Create Supabase client to get user session
+    const supabaseClient = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_ANON_KEY') ?? '',
+      {
+        global: {
+          headers: { Authorization: req.headers.get('Authorization')! },
+        },
+      }
+    )
+
+    // Get user session
+    const { data: { session }, error: sessionError } = await supabaseClient.auth.getSession()
+    
+    if (sessionError || !session?.user?.email) {
+      console.error('Session error:', sessionError);
+      return new Response(
+        JSON.stringify({
+          error: 'Authentication required',
+          message: 'Please sign in to continue'
+        }),
+        {
+          headers: corsHeaders,
+          status: 401,
+        }
+      );
+    }
+
+    console.log('User authenticated, email:', session.user.email);
 
     if (!MERGE_API_KEY) {
       console.error('Missing MERGE_API_KEY environment variable');
@@ -32,6 +63,8 @@ serve(async (req) => {
       );
     }
 
+    console.log('Requesting link token from Merge.dev...');
+
     // Get the OAuth URL from Merge.dev
     const response = await fetch('https://api.merge.dev/api/integrations/slack/link-token', {
       method: 'POST',
@@ -41,15 +74,18 @@ serve(async (req) => {
       },
       body: JSON.stringify({
         end_user_origin: req.headers.get('origin') || '',
-        end_user_email_address: 'user@example.com', // This will be overwritten by Merge
+        end_user_email_address: session.user.email,
         categories: ['ticketing'],
         integration: 'slack',
       }),
     });
 
-    const responseText = await response.text();
-    let data;
+    console.log('Merge.dev response status:', response.status);
     
+    const responseText = await response.text();
+    console.log('Merge.dev raw response:', responseText);
+    
+    let data;
     try {
       data = JSON.parse(responseText);
     } catch (e) {
@@ -57,7 +93,8 @@ serve(async (req) => {
       return new Response(
         JSON.stringify({
           error: 'Invalid response',
-          message: 'Received invalid response from authentication service'
+          message: 'Received invalid response from authentication service',
+          details: responseText
         }),
         {
           headers: corsHeaders,
@@ -71,11 +108,12 @@ serve(async (req) => {
       return new Response(
         JSON.stringify({
           error: 'Configuration error',
-          message: data.error || 'Failed to get Slack configuration from authentication service'
+          message: data.error || 'Failed to get Slack configuration',
+          details: data
         }),
         {
           headers: corsHeaders,
-          status: 400,
+          status: response.status,
         }
       );
     }
@@ -85,7 +123,8 @@ serve(async (req) => {
       return new Response(
         JSON.stringify({
           error: 'Invalid response',
-          message: 'No authentication URL received from service'
+          message: 'No authentication URL received',
+          details: data
         }),
         {
           headers: corsHeaders,
@@ -94,7 +133,7 @@ serve(async (req) => {
       );
     }
 
-    console.log('Successfully got Slack configuration');
+    console.log('Successfully received link token');
 
     return new Response(
       JSON.stringify({ url: data.link_token }),
@@ -105,12 +144,12 @@ serve(async (req) => {
     );
 
   } catch (error) {
-    console.error('Error in get-slack-config:', error);
+    console.error('Unexpected error in get-slack-config:', error);
     
     return new Response(
       JSON.stringify({
         error: 'Server error',
-        message: 'An unexpected error occurred while getting Slack configuration',
+        message: 'An unexpected error occurred',
         details: error instanceof Error ? error.message : undefined
       }),
       {
