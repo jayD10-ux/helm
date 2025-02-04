@@ -1,7 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
-const SLACK_CLIENT_ID = Deno.env.get('SLACK_CLIENT_ID')!;
-const SLACK_CLIENT_SECRET = Deno.env.get('SLACK_CLIENT_SECRET')!;
+const MERGE_API_KEY = Deno.env.get('MERGE_API_KEY')!;
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -17,64 +17,48 @@ serve(async (req) => {
   }
 
   try {
-    console.log('Starting Slack OAuth token exchange process...');
+    console.log('Starting Merge.dev OAuth token exchange process...');
     
     const { code, redirectUri } = await req.json();
-    console.log('Received authorization code:', code ? 'present (length: ' + code.length + ')' : 'missing');
+    console.log('Received authorization code:', code ? 'present' : 'missing');
     console.log('Received redirect URI:', redirectUri);
     
     if (!code) {
       throw new Error('No authorization code provided');
     }
 
-    if (!SLACK_CLIENT_ID || !SLACK_CLIENT_SECRET) {
-      console.error('Missing required environment variables:', {
-        hasClientId: !!SLACK_CLIENT_ID,
-        hasClientSecret: !!SLACK_CLIENT_SECRET
-      });
-      throw new Error('Missing required Slack credentials');
+    if (!MERGE_API_KEY) {
+      console.error('Missing required environment variables');
+      throw new Error('Missing required Merge.dev credentials');
     }
 
-    const cleanRedirectUri = new URL(redirectUri).toString().replace(/\/$/, '');
-    console.log('Cleaned redirect URI:', cleanRedirectUri);
-    
-    console.log('Preparing token exchange request to Slack...');
-    const tokenResponse = await fetch('https://slack.com/api/oauth.v2.access', {
+    // Exchange code for Merge.dev account token
+    console.log('Exchanging code for Merge.dev account token...');
+    const response = await fetch('https://api.merge.dev/api/integrations/slack/account-token', {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
+        'Authorization': `Bearer ${MERGE_API_KEY}`,
+        'Content-Type': 'application/json',
       },
-      body: new URLSearchParams({
+      body: JSON.stringify({
         code,
-        client_id: SLACK_CLIENT_ID,
-        client_secret: SLACK_CLIENT_SECRET,
-        redirect_uri: cleanRedirectUri,
+        redirect_uri: redirectUri,
       }),
     });
 
-    const tokens = await tokenResponse.json();
-    console.log('Token response status:', tokenResponse.status);
-    console.log('Token response type:', tokens.token_type || 'not provided');
-
-    if (!tokenResponse.ok || !tokens.access_token) {
-      console.error('Token exchange failed:', {
-        status: tokenResponse.status,
-        error: tokens.error,
-        warning: tokens.warning
-      });
-      throw new Error(tokens.error || 'Failed to exchange code for access token');
+    if (!response.ok) {
+      const error = await response.text();
+      console.error('Token exchange failed:', error);
+      throw new Error('Failed to exchange code for account token');
     }
 
-    console.log('Successfully received tokens');
-
-    // Calculate token expiration (Slack tokens don't expire by default)
-    const expiresAt = null;
+    const data = await response.json();
+    console.log('Successfully received account token');
 
     return new Response(
       JSON.stringify({
-        access_token: tokens.access_token,
-        refresh_token: tokens.refresh_token,
-        expires_at: expiresAt,
+        merge_account_token: data.account_token,
+        merge_account_id: data.account_id,
       }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -82,16 +66,12 @@ serve(async (req) => {
       },
     );
   } catch (error) {
-    console.error('Error in Slack OAuth process:', {
-      message: error.message,
-      stack: error.stack,
-      type: error.constructor.name
-    });
+    console.error('Error in Slack OAuth process:', error);
     
     return new Response(
       JSON.stringify({ 
-        error: error.message,
-        detail: 'Failed to complete Slack authentication. Check Edge Function logs for details.'
+        error: error instanceof Error ? error.message : 'Failed to complete authentication',
+        detail: 'Failed to complete Merge.dev authentication. Check Edge Function logs for details.'
       }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },

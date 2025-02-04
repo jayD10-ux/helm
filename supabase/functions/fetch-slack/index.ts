@@ -1,6 +1,8 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
+const MERGE_API_KEY = Deno.env.get('MERGE_API_KEY')!;
+
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -8,13 +10,12 @@ const corsHeaders = {
 }
 
 serve(async (req) => {
-  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders })
   }
 
   try {
-    console.log('Starting Slack messages fetch...');
+    console.log('Starting Slack messages fetch via Merge.dev...');
     
     const supabaseClient = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
@@ -47,11 +48,11 @@ serve(async (req) => {
       )
     }
 
-    if (!integration.access_token) {
-      console.error('No access token found');
+    if (!integration.merge_account_token) {
+      console.error('No Merge.dev account token found');
       return new Response(
         JSON.stringify({ 
-          error: 'No access token found',
+          error: 'No account token found',
           details: 'Please reconnect your Slack account'
         }),
         {
@@ -61,66 +62,36 @@ serve(async (req) => {
       )
     }
 
-    console.log('Fetching messages from Slack API...');
+    console.log('Fetching messages from Merge.dev API...');
     
-    // Get user's channels
-    const channelsResponse = await fetch('https://slack.com/api/conversations.list', {
-      headers: {
-        'Authorization': `Bearer ${integration.access_token}`,
-        'Content-Type': 'application/json',
-      },
-    })
-
-    if (!channelsResponse.ok) {
-      throw new Error(`Failed to fetch channels: ${channelsResponse.statusText}`);
-    }
-
-    const channelsData = await channelsResponse.json();
-    
-    if (!channelsData.ok) {
-      throw new Error(channelsData.error || 'Failed to fetch channels');
-    }
-
-    const channels = channelsData.channels || [];
-    if (channels.length === 0) {
-      return new Response(
-        JSON.stringify({ messages: [] }),
-        { headers: corsHeaders }
-      )
-    }
-
-    // Get messages from the first channel
-    const channel = channels[0];
+    // Get messages using Merge.dev's unified API
     const messagesResponse = await fetch(
-      `https://slack.com/api/conversations.history?channel=${channel.id}&limit=10`,
+      'https://api.merge.dev/api/ticketing/v1/messages?include_deleted=false',
       {
         headers: {
-          'Authorization': `Bearer ${integration.access_token}`,
-          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${integration.merge_account_token}`,
+          'X-Account-Token': integration.merge_account_id,
         },
       }
     )
 
     if (!messagesResponse.ok) {
-      throw new Error(`Failed to fetch messages: ${messagesResponse.statusText}`);
+      const error = await messagesResponse.text();
+      console.error('Merge.dev API error:', error);
+      throw new Error('Failed to fetch messages from Merge.dev');
     }
 
-    const messagesData = await messagesResponse.json();
-    
-    if (!messagesData.ok) {
-      throw new Error(messagesData.error || 'Failed to fetch messages');
-    }
+    const data = await messagesResponse.json();
+    console.log(`Successfully fetched ${data.results?.length || 0} messages`);
 
     // Format messages
-    const messages = (messagesData.messages || []).map((msg: any) => ({
-      id: msg.ts,
-      text: msg.text,
-      user: msg.user,
-      timestamp: new Date(Number(msg.ts) * 1000).toISOString(),
-      channel: channel.name,
+    const messages = (data.results || []).map((msg: any) => ({
+      id: msg.remote_id,
+      text: msg.body,
+      user: msg.sender_name,
+      timestamp: msg.created_at,
+      channel: msg.channel_name || 'Unknown Channel',
     }));
-
-    console.log(`Successfully fetched ${messages.length} messages`);
 
     return new Response(
       JSON.stringify({ messages }),

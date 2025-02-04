@@ -59,20 +59,26 @@ const IntegrationCard = ({
   };
 
   const handleConnect = async () => {
-    if (provider === 'slack') {
-      // Redirect to Slack OAuth
-      const { data: { url }, error } = await supabase.functions.invoke('get-slack-config');
+    try {
+      // Store return URL for after OAuth
+      localStorage.setItem(`${provider}OAuthReturnTo`, window.location.pathname);
+      
+      // Get Merge.dev OAuth URL from our backend
+      const { data: { url }, error } = await supabase.functions.invoke(`get-${provider}-config`);
+      
       if (error) {
-        toast({
-          title: "Error",
-          description: "Failed to get Slack configuration",
-          variant: "destructive",
-        });
-        return;
+        throw error;
       }
+
+      // Redirect to Merge.dev OAuth
       window.location.href = url;
-    } else {
-      onConnect();
+    } catch (error) {
+      console.error('Connect error:', error);
+      toast({
+        title: "Error",
+        description: `Failed to start ${title} connection`,
+        variant: "destructive",
+      });
     }
   };
 
