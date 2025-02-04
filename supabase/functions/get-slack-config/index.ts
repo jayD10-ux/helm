@@ -1,61 +1,70 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 
+const MERGE_API_KEY = Deno.env.get('MERGE_API_KEY')!;
+
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
 serve(async (req) => {
+  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders })
   }
 
   try {
-    const clientId = Deno.env.get('SLACK_CLIENT_ID')
-    if (!clientId) {
-      throw new Error('Missing Slack client ID')
+    console.log('Getting Slack OAuth configuration from Merge.dev...');
+
+    if (!MERGE_API_KEY) {
+      console.error('Missing MERGE_API_KEY environment variable');
+      throw new Error('Server configuration error');
     }
 
-    // Update scopes to include necessary permissions
-    const scopes = [
-      'channels:read',
-      'channels:history',
-      'groups:read',
-      'groups:history',
-      'chat:write',
-      'im:history',
-      'im:read',
-      'mpim:history',
-      'mpim:read'
-    ].join(' ')
+    // Get the OAuth URL from Merge.dev
+    const response = await fetch('https://api.merge.dev/api/integrations/slack/link-token', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${MERGE_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        end_user_origin: req.headers.get('origin') || '',
+        end_user_email_address: 'user@example.com', // This will be overwritten by Merge
+        categories: ['ticketing'],
+        integration: 'slack',
+      }),
+    });
 
-    // Construct the OAuth URL
-    const redirectUri = `${req.headers.get('origin')}/oauth/callback`
-    console.log('Redirect URI:', redirectUri)
+    if (!response.ok) {
+      const error = await response.text();
+      console.error('Merge.dev API error:', error);
+      throw new Error('Failed to get Slack configuration');
+    }
 
-    const url = `https://slack.com/oauth/v2/authorize?client_id=${clientId}&scope=${scopes}&redirect_uri=${encodeURIComponent(redirectUri)}&state=slack`
-
-    console.log('Generated Slack OAuth URL:', url)
+    const data = await response.json();
+    console.log('Successfully got Slack configuration');
 
     return new Response(
+      JSON.stringify({ url: data.link_token }),
+      { 
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 200,
+      }
+    );
+
+  } catch (error) {
+    console.error('Error in get-slack-config:', error);
+    
+    return new Response(
       JSON.stringify({
-        url,
-        clientId,
-        scopes,
+        error: error instanceof Error ? error.message : 'Failed to get Slack configuration',
+        details: error instanceof Error ? error.stack : undefined
       }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 200,
-      },
-    )
-  } catch (error) {
-    console.error('Error in get-slack-config:', error)
-    return new Response(
-      JSON.stringify({ error: error.message }),
-      {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 400,
-      },
-    )
+        status: 500,
+      }
+    );
   }
-})
+});
