@@ -14,3 +14,23 @@ export interface IntegrationError {
   message: string;
   details?: string;
 }
+
+export type IntegrationProvider = 'github' | 'slack' | 'google' | 'figma';
+
+export interface IntegrationStatus {
+  isConnected: boolean;
+  isLoading: boolean;
+  error: IntegrationError | null;
+}
+
+export interface BaseMessage {
+  id: string;
+  created_at: string;
+}
+
+export interface IntegrationCardProps {
+  title: string;
+  provider: IntegrationProvider;
+  icon: React.ElementType;
+  templateUrl?: string;
+}
