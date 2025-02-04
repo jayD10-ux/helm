@@ -1,5 +1,4 @@
-import { MessageSquare, Loader, RefreshCw } from "lucide-react";
-import { Card } from "@/components/ui/card";
+import { MessageSquare, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -7,9 +6,9 @@ import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 import { useState } from "react";
 import { useIntegration } from "@/hooks/useIntegration";
-import { IntegrationStatus } from "../shared/IntegrationStatus";
-import { MessageList } from "../shared/MessageList";
-import { BaseMessage, SlackMessage } from "@/types/integration";
+import { IntegrationStatus } from "@/components/shared/IntegrationStatus";
+import { MessageList } from "@/components/shared/MessageList";
+import { SlackMessage } from "@/types/messages";
 
 const SlackMessages = () => {
   const { toast } = useToast();

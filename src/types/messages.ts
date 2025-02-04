@@ -12,7 +12,6 @@ export interface SlackMessage extends BaseMessage {
   user: string;
   timestamp: string;
   channel: string;
-  created_at: string;
 }
 
 export interface FigmaComment extends BaseMessage {

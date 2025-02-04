@@ -6,8 +6,8 @@ import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 import { useState } from "react";
 import { useIntegration } from "@/hooks/useIntegration";
-import { IntegrationStatus } from "../shared/IntegrationStatus";
-import { MessageList } from "../shared/MessageList";
+import { IntegrationStatus } from "@/components/shared/IntegrationStatus";
+import { MessageList } from "@/components/shared/MessageList";
 import { GmailMessage } from "@/types/messages";
 
 const GmailMessages = () => {
