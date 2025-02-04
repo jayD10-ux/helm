@@ -43,7 +43,7 @@ const SlackMessages = () => {
   } = useQuery({
     queryKey: ['slack-messages'],
     queryFn: async () => {
-      if (!integrations?.[0]?.webhook_url) {
+      if (!integrations?.[0]?.access_token) {
         throw new Error('No Slack integration found');
       }
 
@@ -52,7 +52,7 @@ const SlackMessages = () => {
       if (error) throw error;
       return data.notifications as SlackMessage[];
     },
-    enabled: !!integrations?.[0]?.webhook_url,
+    enabled: !!integrations?.[0]?.access_token,
     refetchInterval: 5 * 60 * 1000 // Refetch every 5 minutes
   });
 
@@ -110,7 +110,7 @@ const SlackMessages = () => {
     );
   }
 
-  const hasSlackIntegration = !!integrations?.[0]?.webhook_url;
+  const hasSlackIntegration = !!integrations?.[0]?.access_token;
 
   if (!hasSlackIntegration) {
     return (
