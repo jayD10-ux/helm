@@ -15,12 +15,24 @@ interface SlackMessage {
   channel: string;
 }
 
+interface Integration {
+  id: string;
+  user_id: string;
+  provider: string;
+  webhook_url: string | null;
+  created_at: string;
+  updated_at: string;
+  template_id: string | null;
+  merge_account_token: string | null;
+  merge_account_id: string | null;
+}
+
 const SlackMessages = () => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [isRefreshing, setIsRefreshing] = useState(false);
 
-  const { data: integration, isLoading: isLoadingIntegration } = useQuery({
+  const { data: integration, isLoading: isLoadingIntegration } = useQuery<Integration>({
     queryKey: ['integrations', 'slack'],
     queryFn: async () => {
       const { data, error } = await supabase
