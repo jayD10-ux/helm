@@ -8,6 +8,7 @@ interface IntegrationStatusProps {
   error: IntegrationError | null;
   icon: React.ElementType;
   title: string;
+  description?: string;
   onDisconnect?: () => void;
 }
 
@@ -16,6 +17,7 @@ export const IntegrationStatus = ({
   error,
   icon: Icon,
   title,
+  description,
   onDisconnect
 }: IntegrationStatusProps) => {
   if (isLoading) {
@@ -41,6 +43,22 @@ export const IntegrationStatus = ({
               Disconnect {title}
             </Button>
           )}
+        </div>
+      </Card>
+    );
+  }
+
+  if (description) {
+    return (
+      <Card className="p-4">
+        <div className="flex items-start space-x-4">
+          <Icon className="w-5 h-5 text-muted-foreground mt-1" />
+          <div className="flex-1">
+            <h3 className="font-medium">{title}</h3>
+            <p className="text-sm text-muted-foreground">
+              {description}
+            </p>
+          </div>
         </div>
       </Card>
     );

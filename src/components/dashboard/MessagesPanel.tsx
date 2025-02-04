@@ -1,9 +1,9 @@
 import { MessageCircle } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import GmailMessages from "./messages/GmailMessages";
-import SlackMessages from "./messages/SlackMessages";
-import FigmaComments from "./messages/FigmaComments";
+import GmailMessages from "./GmailMessages";
+import SlackMessages from "./SlackMessages";
+import FigmaComments from "./FigmaComments";
 import { Integration } from "@/types/integration";
 
 const MessagesPanel = () => {

@@ -6,15 +6,10 @@ import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 import { useState } from "react";
-import { useIntegration } from "./useIntegration";
-
-interface SlackMessage {
-  id: string;
-  text: string;
-  user: string;
-  timestamp: string;
-  channel: string;
-}
+import { useIntegration } from "@/hooks/useIntegration";
+import { IntegrationStatus } from "../shared/IntegrationStatus";
+import { MessageList } from "../shared/MessageList";
+import { BaseMessage, SlackMessage } from "@/types/integration";
 
 const SlackMessages = () => {
   const { toast } = useToast();
@@ -40,7 +35,12 @@ const SlackMessages = () => {
 
       const { data, error } = await supabase.functions.invoke('fetch-slack');
       if (error) throw error;
-      return data.messages as SlackMessage[];
+      
+      // Transform messages to include created_at
+      return (data.messages as Omit<SlackMessage, 'created_at'>[]).map(message => ({
+        ...message,
+        created_at: message.timestamp // Use timestamp as created_at to satisfy BaseMessage
+      }));
     },
     enabled: !!integration?.merge_account_token
   });
@@ -92,46 +92,30 @@ const SlackMessages = () => {
   };
 
   if (isLoadingIntegration || isLoadingMessages) {
-    return (
-      <div className="flex items-center justify-center p-4">
-        <Loader className="w-6 h-6 animate-spin" />
-      </div>
-    );
+    return <IntegrationStatus isLoading={true} error={null} icon={MessageSquare} title="Slack" />;
   }
 
   if (!integration?.merge_account_token) {
     return (
-      <Card className="p-4">
-        <div className="flex items-start space-x-4">
-          <MessageSquare className="w-5 h-5 text-muted-foreground mt-1" />
-          <div className="flex-1">
-            <h3 className="font-medium">Slack</h3>
-            <p className="text-sm text-muted-foreground">
-              Connect your Slack account to see your messages here
-            </p>
-          </div>
-        </div>
-      </Card>
+      <IntegrationStatus 
+        isLoading={false}
+        error={null}
+        icon={MessageSquare}
+        title="Slack"
+        description="Connect your Slack account to see your messages here"
+      />
     );
   }
 
   if (messagesError) {
     return (
-      <Card className="p-4 bg-destructive/10">
-        <div className="flex flex-col space-y-4">
-          <p className="text-sm text-destructive">
-            {messagesError instanceof Error ? messagesError.message : "Failed to load messages"}
-          </p>
-          <Button 
-            variant="outline" 
-            size="sm"
-            onClick={handleDisconnect}
-            className="w-fit"
-          >
-            Disconnect Slack
-          </Button>
-        </div>
-      </Card>
+      <IntegrationStatus 
+        isLoading={false}
+        error={{ message: messagesError instanceof Error ? messagesError.message : "Failed to load messages" }}
+        icon={MessageSquare}
+        title="Slack"
+        onDisconnect={handleDisconnect}
+      />
     );
   }
 
@@ -161,8 +145,11 @@ const SlackMessages = () => {
         </div>
       </div>
 
-      {messages?.map((message) => (
-        <Card key={message.id} className="p-4 hover:shadow-lg transition-shadow duration-200">
+      <MessageList
+        messages={messages || []}
+        icon={MessageSquare}
+        emptyMessage="No Slack messages to display"
+        renderMessage={(message: SlackMessage) => (
           <div className="flex items-start space-x-4">
             <MessageSquare className="w-5 h-5 text-muted-foreground mt-1" />
             <div className="flex-1">
@@ -178,8 +165,8 @@ const SlackMessages = () => {
               </p>
             </div>
           </div>
-        </Card>
-      ))}
+        )}
+      />
     </div>
   );
 };

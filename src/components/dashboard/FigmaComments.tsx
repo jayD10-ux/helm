@@ -5,26 +5,7 @@ import { MessageSquare, Loader, FileIcon, ExternalLink } from "lucide-react";
 import { format } from "date-fns";
 import { useIntegration } from "./useIntegration";
 
-interface FigmaFile {
-  key: string;
-  name: string;
-  thumbnail_url?: string;
-  last_modified: string;
-  comments: FigmaComment[];
-}
-
-interface FigmaComment {
-  id: string;
-  file_key: string;
-  parent_id: string | null;
-  message: string;
-  created_at: string;
-  resolved: boolean;
-  client_meta: {
-    node_id?: string;
-    node_offset?: { x: number; y: number };
-  };
-}
+import { FigmaFile, FigmaComment } from "@/types/messages";
 
 const FigmaComments = () => {
   const { data: integration, isLoading: isLoadingIntegration } = useIntegration('figma');
