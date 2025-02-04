@@ -59,11 +59,10 @@ const MainDashboard = () => {
   const getIntegrationStatus = (provider: string) => {
     if (isLoadingIntegrations) return "Loading...";
     const integration = integrations?.find(i => i.provider.toLowerCase() === provider.toLowerCase());
-    return integration?.access_token ? "Connected" : "Not Connected";
+    return integration?.merge_account_token ? "Connected" : "Not Connected";
   };
 
   const handleConnect = async (provider: string) => {
-    // OAuth flow is now handled in IntegrationCard component
     toast({
       title: "Info",
       description: `Redirecting to ${provider} OAuth...`,
@@ -134,8 +133,6 @@ const MainDashboard = () => {
       templateUrl: "https://www.merge.dev/docs/ats/overview/"
     },
   ];
-
-  // ... keep existing code (render method)
 
   return (
     <div className="h-full w-full p-4 animate-fade-in">

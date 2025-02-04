@@ -46,7 +46,7 @@ const SlackMessages = () => {
       if (error) throw error;
       return data.messages as SlackMessage[];
     },
-    enabled: !!integration?.access_token
+    enabled: !!integration?.merge_account_token
   });
 
   const handleDisconnect = async () => {
@@ -103,7 +103,7 @@ const SlackMessages = () => {
     );
   }
 
-  if (!integration?.access_token) {
+  if (!integration?.merge_account_token) {
     return (
       <Card className="p-4">
         <div className="flex items-start space-x-4">

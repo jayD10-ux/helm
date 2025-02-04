@@ -17,9 +17,9 @@ const MessagesPanel = () => {
     },
   });
 
-  const hasGmailIntegration = integrations?.some(i => i.provider === 'google' && i.access_token);
-  const hasSlackIntegration = integrations?.some(i => i.provider === 'slack' && i.access_token);
-  const hasFigmaIntegration = integrations?.some(i => i.provider === 'figma' && i.access_token);
+  const hasGmailIntegration = integrations?.some(i => i.provider === 'google' && i.merge_account_token);
+  const hasSlackIntegration = integrations?.some(i => i.provider === 'slack' && i.merge_account_token);
+  const hasFigmaIntegration = integrations?.some(i => i.provider === 'figma' && i.merge_account_token);
 
   return (
     <div className="h-full w-full p-4 animate-fade-in">
