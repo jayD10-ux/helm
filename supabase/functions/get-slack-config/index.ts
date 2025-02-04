@@ -5,12 +5,14 @@ const MERGE_API_KEY = Deno.env.get('MERGE_API_KEY')!;
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Content-Type': 'application/json'
 }
 
 serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders })
+    console.log('Handling CORS preflight request');
+    return new Response(null, { headers: corsHeaders });
   }
 
   try {
@@ -18,7 +20,7 @@ serve(async (req) => {
 
     if (!MERGE_API_KEY) {
       console.error('Missing MERGE_API_KEY environment variable');
-      throw new Error('Server configuration error');
+      throw new Error('Server configuration error: Missing API key');
     }
 
     // Get the OAuth URL from Merge.dev
@@ -39,7 +41,7 @@ serve(async (req) => {
     if (!response.ok) {
       const error = await response.text();
       console.error('Merge.dev API error:', error);
-      throw new Error('Failed to get Slack configuration');
+      throw new Error('Failed to get Slack configuration from Merge.dev');
     }
 
     const data = await response.json();
@@ -48,7 +50,7 @@ serve(async (req) => {
     return new Response(
       JSON.stringify({ url: data.link_token }),
       { 
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        headers: { ...corsHeaders },
         status: 200,
       }
     );
@@ -62,7 +64,7 @@ serve(async (req) => {
         details: error instanceof Error ? error.stack : undefined
       }),
       {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        headers: { ...corsHeaders },
         status: 500,
       }
     );

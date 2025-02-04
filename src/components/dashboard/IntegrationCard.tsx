@@ -39,18 +39,28 @@ const IntegrationCard = ({
 
   const handleConnect = async () => {
     try {
+      console.log(`Starting ${provider} OAuth connection...`);
       localStorage.setItem(`${provider}OAuthReturnTo`, window.location.pathname);
-      const { data: { url }, error } = await supabase.functions.invoke(`get-${provider}-config`);
       
-      if (error) throw error;
-      if (!url) throw new Error('No OAuth URL returned');
+      const { data, error } = await supabase.functions.invoke(`get-${provider}-config`);
+      
+      if (error) {
+        console.error(`${provider} OAuth config error:`, error);
+        throw new Error(`Failed to get ${provider} configuration: ${error.message}`);
+      }
 
-      window.location.href = url;
+      if (!data?.url) {
+        console.error(`No OAuth URL returned for ${provider}`);
+        throw new Error('No OAuth URL returned from server');
+      }
+
+      console.log(`Redirecting to ${provider} OAuth URL...`);
+      window.location.href = data.url;
     } catch (error) {
-      console.error('Connect error:', error);
+      console.error(`${provider} connection error:`, error);
       toast({
-        title: "Error",
-        description: `Failed to start ${title} connection`,
+        title: "Connection Error",
+        description: error instanceof Error ? error.message : `Failed to start ${title} connection. Please try again.`,
         variant: "destructive",
       });
     }
@@ -61,16 +71,17 @@ const IntegrationCard = ({
     
     setIsRefreshing(true);
     try {
+      console.log(`Refreshing ${provider} connection...`);
       await queryClient.invalidateQueries({ queryKey: ['integrations'] });
       toast({
         title: "Success",
         description: `${title} connection refreshed`,
       });
     } catch (error) {
-      console.error('Refresh error:', error);
+      console.error(`${provider} refresh error:`, error);
       toast({
-        title: "Error",
-        description: `Failed to refresh ${title} connection`,
+        title: "Refresh Error",
+        description: error instanceof Error ? error.message : `Failed to refresh ${title} connection`,
         variant: "destructive",
       });
     } finally {
