@@ -18,6 +18,15 @@ interface Message {
 }
 
 async function analyzeMessage(message: string) {
+  if (!OPENAI_API_KEY) {
+    console.log('OpenAI API key not configured, skipping analysis');
+    return {
+      urgency: "Low",
+      sentiment: "Neutral",
+      topic: "No analysis"
+    };
+  }
+
   try {
     const configuration = new Configuration({ apiKey: OPENAI_API_KEY });
     const openai = new OpenAIApi(configuration);
@@ -39,17 +48,18 @@ async function analyzeMessage(message: string) {
     `;
 
     const response = await openai.createChatCompletion({
-      model: "gpt-4o-mini",
+      model: "gpt-3.5-turbo",
       messages: [{ role: "user", content: prompt }],
     });
 
-    return JSON.parse(response.data.choices[0].message.content);
+    const content = response.data.choices[0].message?.content || '{}';
+    return JSON.parse(content);
   } catch (error) {
     console.error('Error analyzing message:', error);
     return {
       urgency: "Low",
       sentiment: "Neutral",
-      topic: "Unable to analyze"
+      topic: "Analysis failed"
     };
   }
 }
@@ -93,23 +103,40 @@ serve(async (req) => {
     const messages = data.results || [];
     console.log(`Processing ${messages.length} messages...`);
 
-    const processedMessages = await Promise.all(
-      messages
-        .filter((msg: any) => msg && !msg.is_bot_message)
-        .map(async (msg: any) => {
-          const analysis = await analyzeMessage(msg.message_content || '');
-          
-          return {
-            priority: analysis.urgency,
-            sender: msg.sender_name || 'Unknown',
-            message: msg.message_content || '',
-            channel: msg.channel_name || 'General',
-            time: new Date(msg.timestamp || Date.now()).toISOString(),
-            sentiment: analysis.sentiment,
-            topic: analysis.topic,
-          };
+    // Process messages without waiting for analysis
+    const processedMessages = messages
+      .filter((msg: any) => msg && !msg.is_bot_message)
+      .map((msg: any) => ({
+        priority: "Low", // Default priority
+        sender: msg.sender_name || 'Unknown',
+        message: msg.message_content || '',
+        channel: msg.channel_name || 'General',
+        time: new Date(msg.timestamp || Date.now()).toISOString(),
+        sentiment: "Neutral", // Default sentiment
+        topic: "Pending analysis", // Default topic
+      }));
+
+    // Analyze messages in background
+    if (OPENAI_API_KEY) {
+      Promise.all(
+        processedMessages.map(async (msg, index) => {
+          try {
+            const analysis = await analyzeMessage(msg.message);
+            processedMessages[index] = {
+              ...msg,
+              priority: analysis.urgency,
+              sentiment: analysis.sentiment,
+              topic: analysis.topic,
+            };
+          } catch (error) {
+            console.error('Message analysis error:', error);
+            // Keep default values if analysis fails
+          }
         })
-    );
+      ).catch(error => {
+        console.error('Background analysis error:', error);
+      });
+    }
 
     console.log(`Successfully processed ${processedMessages.length} messages`);
 
@@ -121,7 +148,6 @@ serve(async (req) => {
   } catch (error) {
     console.error('Error in fetch-slack-notifications:', error);
     
-    // Return a structured error response
     return new Response(
       JSON.stringify({
         error: error instanceof Error ? error.message : 'An unexpected error occurred',
