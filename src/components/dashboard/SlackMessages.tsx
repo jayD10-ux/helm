@@ -8,13 +8,11 @@ import { useToast } from "@/hooks/use-toast";
 import { useState } from "react";
 
 interface SlackMessage {
-  priority: string;
-  sender: string;
-  message: string;
+  id: string;
+  text: string;
+  user: string;
+  timestamp: string;
   channel: string;
-  time: string;
-  sentiment: string;
-  topic: string;
 }
 
 const SlackMessages = () => {
@@ -22,13 +20,14 @@ const SlackMessages = () => {
   const queryClient = useQueryClient();
   const [isRefreshing, setIsRefreshing] = useState(false);
 
-  const { data: integrations, isLoading: isLoadingIntegrations } = useQuery({
-    queryKey: ['integrations'],
+  const { data: integration, isLoading: isLoadingIntegration } = useQuery({
+    queryKey: ['integrations', 'slack'],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('integrations')
         .select('*')
-        .eq('provider', 'slack');
+        .eq('provider', 'slack')
+        .single();
       
       if (error) throw error;
       return data;
@@ -37,23 +36,17 @@ const SlackMessages = () => {
 
   const { 
     data: messages, 
-    isLoading: isLoadingMessages, 
+    isLoading: isLoadingMessages,
     error: messagesError,
     refetch: refetchMessages
   } = useQuery({
     queryKey: ['slack-messages'],
     queryFn: async () => {
-      if (!integrations?.[0]?.access_token) {
-        throw new Error('No Slack integration found');
-      }
-
-      const { data, error } = await supabase.functions.invoke('fetch-slack-notifications');
-      
+      const { data, error } = await supabase.functions.invoke('fetch-slack');
       if (error) throw error;
-      return data.notifications as SlackMessage[];
+      return data.messages as SlackMessage[];
     },
-    enabled: !!integrations?.[0]?.access_token,
-    refetchInterval: 5 * 60 * 1000 // Refetch every 5 minutes
+    enabled: !!integration?.access_token
   });
 
   const handleDisconnect = async () => {
@@ -72,11 +65,11 @@ const SlackMessages = () => {
         title: "Success",
         description: "Slack disconnected successfully",
       });
-    } catch (error: any) {
+    } catch (error) {
       console.error('Disconnect error:', error);
       toast({
         title: "Error",
-        description: "Failed to disconnect Slack. Please try again.",
+        description: "Failed to disconnect Slack",
         variant: "destructive",
       });
     }
@@ -102,7 +95,7 @@ const SlackMessages = () => {
     }
   };
 
-  if (isLoadingIntegrations || isLoadingMessages) {
+  if (isLoadingIntegration || isLoadingMessages) {
     return (
       <div className="flex items-center justify-center p-4">
         <Loader className="w-6 h-6 animate-spin" />
@@ -110,9 +103,7 @@ const SlackMessages = () => {
     );
   }
 
-  const hasSlackIntegration = !!integrations?.[0]?.access_token;
-
-  if (!hasSlackIntegration) {
+  if (!integration?.access_token) {
     return (
       <Card className="p-4">
         <div className="flex items-start space-x-4">
@@ -151,7 +142,7 @@ const SlackMessages = () => {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h3 className="font-medium">Slack</h3>
+        <h3 className="font-medium">Slack Messages</h3>
         <div className="flex items-center space-x-2">
           <Button
             variant="ghost"
@@ -173,20 +164,21 @@ const SlackMessages = () => {
           </Button>
         </div>
       </div>
-      {messages?.map((message: SlackMessage) => (
-        <Card key={message.time} className="p-4 hover:shadow-lg transition-shadow duration-200">
+
+      {messages?.map((message) => (
+        <Card key={message.id} className="p-4 hover:shadow-lg transition-shadow duration-200">
           <div className="flex items-start space-x-4">
             <MessageSquare className="w-5 h-5 text-muted-foreground mt-1" />
             <div className="flex-1">
               <div className="flex justify-between items-start">
-                <h3 className="font-medium line-clamp-1">{message.channel}</h3>
+                <h3 className="font-medium line-clamp-1">#{message.channel}</h3>
                 <span className="text-xs text-muted-foreground">
-                  {format(new Date(message.time), 'MMM d')}
+                  {format(new Date(message.timestamp), 'MMM d, HH:mm')}
                 </span>
               </div>
-              <p className="text-sm text-muted-foreground mb-1">User: {message.sender}</p>
+              <p className="text-sm text-muted-foreground mb-1">User: {message.user}</p>
               <p className="text-sm text-muted-foreground line-clamp-2">
-                {message.message}
+                {message.text}
               </p>
             </div>
           </div>
