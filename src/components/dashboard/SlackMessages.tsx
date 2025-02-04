@@ -7,6 +7,16 @@ import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 import { useState } from "react";
 
+interface SlackMessage {
+  priority: string;
+  sender: string;
+  message: string;
+  channel: string;
+  time: string;
+  sentiment: string;
+  topic: string;
+}
+
 const SlackMessages = () => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -37,25 +47,13 @@ const SlackMessages = () => {
         throw new Error('No Slack integration found');
       }
 
-      const response = await fetch(integrations[0].webhook_url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          timestamp: new Date().toISOString(),
-          triggered_from: window.location.origin,
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to fetch Slack data');
-      }
-
-      const data = await response.json();
-      return data.messages;
+      const { data, error } = await supabase.functions.invoke('fetch-slack-notifications');
+      
+      if (error) throw error;
+      return data.notifications as SlackMessage[];
     },
-    enabled: !!integrations?.[0]?.webhook_url
+    enabled: !!integrations?.[0]?.webhook_url,
+    refetchInterval: 5 * 60 * 1000 // Refetch every 5 minutes
   });
 
   const handleDisconnect = async () => {
@@ -175,22 +173,20 @@ const SlackMessages = () => {
           </Button>
         </div>
       </div>
-      {messages?.map((message: any) => (
-        <Card key={message.id} className="p-4 hover:shadow-lg transition-shadow duration-200">
+      {messages?.map((message: SlackMessage) => (
+        <Card key={message.time} className="p-4 hover:shadow-lg transition-shadow duration-200">
           <div className="flex items-start space-x-4">
             <MessageSquare className="w-5 h-5 text-muted-foreground mt-1" />
             <div className="flex-1">
               <div className="flex justify-between items-start">
                 <h3 className="font-medium line-clamp-1">{message.channel}</h3>
-                {message.timestamp && (
-                  <span className="text-xs text-muted-foreground">
-                    {format(new Date(message.timestamp), 'MMM d')}
-                  </span>
-                )}
+                <span className="text-xs text-muted-foreground">
+                  {format(new Date(message.time), 'MMM d')}
+                </span>
               </div>
-              <p className="text-sm text-muted-foreground mb-1">User: {message.user}</p>
+              <p className="text-sm text-muted-foreground mb-1">User: {message.sender}</p>
               <p className="text-sm text-muted-foreground line-clamp-2">
-                {message.text}
+                {message.message}
               </p>
             </div>
           </div>
