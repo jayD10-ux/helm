@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
 import { MessageSquare, Loader, FileIcon, ExternalLink } from "lucide-react";
 import { format } from "date-fns";
+import { useIntegration } from "./useIntegration";
 
 interface FigmaFile {
   key: string;
@@ -26,9 +27,15 @@ interface FigmaComment {
 }
 
 const FigmaComments = () => {
+  const { data: integration, isLoading: isLoadingIntegration } = useIntegration('figma');
+
   const { data: figmaData, isLoading } = useQuery({
     queryKey: ['figma-data'],
     queryFn: async () => {
+      if (!integration?.merge_account_token) {
+        throw new Error('No Figma integration found');
+      }
+
       console.log('Fetching Figma data...');
       const { data, error } = await supabase.functions.invoke('fetch-figma');
       if (error) {
@@ -38,13 +45,25 @@ const FigmaComments = () => {
       console.log('Figma data:', data);
       return data as { files: FigmaFile[] };
     },
+    enabled: !!integration?.merge_account_token
   });
 
-  if (isLoading) {
+  if (isLoadingIntegration || isLoading) {
     return (
       <div className="flex items-center justify-center p-4">
         <Loader className="w-6 h-6 animate-spin text-muted-foreground" />
       </div>
+    );
+  }
+
+  if (!integration?.merge_account_token) {
+    return (
+      <Card className="p-4">
+        <div className="text-center text-muted-foreground">
+          <MessageSquare className="w-8 h-8 mx-auto mb-2 opacity-50" />
+          <p>Connect your Figma account to see comments</p>
+        </div>
+      </Card>
     );
   }
 

@@ -6,56 +6,43 @@ import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 import { useState } from "react";
+import { useIntegration } from "./useIntegration";
+
+interface GmailMessage {
+  id: string;
+  subject: string;
+  from: string;
+  snippet: string;
+  date: string;
+}
 
 const GmailMessages = () => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [isRefreshing, setIsRefreshing] = useState(false);
 
-  const { data: integrations, isLoading: isLoadingIntegrations } = useQuery({
-    queryKey: ['integrations'],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('integrations')
-        .select('*')
-        .eq('provider', 'google');
-      
-      if (error) throw error;
-      return data;
-    }
-  });
+  const { 
+    data: integration,
+    isLoading: isLoadingIntegration 
+  } = useIntegration('google');
 
   const { 
     data: emails, 
-    isLoading: isLoadingEmails, 
+    isLoading: isLoadingEmails,
     error: emailError,
     refetch: refetchEmails
   } = useQuery({
     queryKey: ['gmail-messages'],
     queryFn: async () => {
-      if (!integrations?.[0]?.webhook_url) {
+      if (!integration?.merge_account_token) {
         throw new Error('No Gmail integration found');
       }
 
-      const response = await fetch(integrations[0].webhook_url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          timestamp: new Date().toISOString(),
-          triggered_from: window.location.origin,
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to fetch Gmail data');
-      }
-
-      const data = await response.json();
-      return data.emails;
+      const { data, error } = await supabase.functions.invoke('fetch-gmail');
+      if (error) throw error;
+      return data.emails as GmailMessage[];
     },
-    enabled: !!integrations?.[0]?.webhook_url
+    enabled: !!integration?.merge_account_token
   });
 
   const handleDisconnect = async () => {
@@ -74,11 +61,11 @@ const GmailMessages = () => {
         title: "Success",
         description: "Gmail disconnected successfully",
       });
-    } catch (error: any) {
+    } catch (error) {
       console.error('Disconnect error:', error);
       toast({
         title: "Error",
-        description: "Failed to disconnect Gmail. Please try again.",
+        description: "Failed to disconnect Gmail",
         variant: "destructive",
       });
     }
@@ -104,7 +91,7 @@ const GmailMessages = () => {
     }
   };
 
-  if (isLoadingIntegrations || isLoadingEmails) {
+  if (isLoadingIntegration || isLoadingEmails) {
     return (
       <div className="flex items-center justify-center p-4">
         <Loader className="w-6 h-6 animate-spin" />
@@ -112,9 +99,7 @@ const GmailMessages = () => {
     );
   }
 
-  const hasGmailIntegration = !!integrations?.[0]?.webhook_url;
-
-  if (!hasGmailIntegration) {
+  if (!integration?.merge_account_token) {
     return (
       <Card className="p-4">
         <div className="flex items-start space-x-4">
@@ -175,7 +160,8 @@ const GmailMessages = () => {
           </Button>
         </div>
       </div>
-      {emails?.map((email: any) => (
+
+      {emails?.map((email) => (
         <Card key={email.id} className="p-4 hover:shadow-lg transition-shadow duration-200">
           <div className="flex items-start space-x-4">
             <Mail className="w-5 h-5 text-muted-foreground mt-1" />

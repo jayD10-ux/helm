@@ -6,6 +6,7 @@ import { RefreshCw, ExternalLink } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { Integration } from "@/types/integration";
 
 interface IntegrationCardProps {
   title: string;
@@ -36,6 +37,25 @@ const IntegrationCard = ({
   const queryClient = useQueryClient();
   const [isRefreshing, setIsRefreshing] = useState(false);
 
+  const handleConnect = async () => {
+    try {
+      localStorage.setItem(`${provider}OAuthReturnTo`, window.location.pathname);
+      const { data: { url }, error } = await supabase.functions.invoke(`get-${provider}-config`);
+      
+      if (error) throw error;
+      if (!url) throw new Error('No OAuth URL returned');
+
+      window.location.href = url;
+    } catch (error) {
+      console.error('Connect error:', error);
+      toast({
+        title: "Error",
+        description: `Failed to start ${title} connection`,
+        variant: "destructive",
+      });
+    }
+  };
+
   const handleRefresh = async () => {
     if (!isConnected) return;
     
@@ -55,30 +75,6 @@ const IntegrationCard = ({
       });
     } finally {
       setIsRefreshing(false);
-    }
-  };
-
-  const handleConnect = async () => {
-    try {
-      // Store return URL for after OAuth
-      localStorage.setItem(`${provider}OAuthReturnTo`, window.location.pathname);
-      
-      // Get Merge.dev OAuth URL from our backend
-      const { data: { url }, error } = await supabase.functions.invoke(`get-${provider}-config`);
-      
-      if (error) {
-        throw error;
-      }
-
-      // Redirect to Merge.dev OAuth
-      window.location.href = url;
-    } catch (error) {
-      console.error('Connect error:', error);
-      toast({
-        title: "Error",
-        description: `Failed to start ${title} connection`,
-        variant: "destructive",
-      });
     }
   };
 

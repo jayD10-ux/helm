@@ -6,6 +6,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 import { useState } from "react";
+import { useIntegration } from "./useIntegration";
 
 interface SlackMessage {
   id: string;
@@ -15,36 +16,15 @@ interface SlackMessage {
   channel: string;
 }
 
-interface Integration {
-  id: string;
-  user_id: string;
-  provider: string;
-  webhook_url: string | null;
-  created_at: string;
-  updated_at: string;
-  template_id: string | null;
-  merge_account_token: string | null;
-  merge_account_id: string | null;
-}
-
 const SlackMessages = () => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [isRefreshing, setIsRefreshing] = useState(false);
 
-  const { data: integration, isLoading: isLoadingIntegration } = useQuery<Integration>({
-    queryKey: ['integrations', 'slack'],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('integrations')
-        .select('*')
-        .eq('provider', 'slack')
-        .single();
-      
-      if (error) throw error;
-      return data;
-    }
-  });
+  const { 
+    data: integration,
+    isLoading: isLoadingIntegration 
+  } = useIntegration('slack');
 
   const { 
     data: messages, 
@@ -54,6 +34,10 @@ const SlackMessages = () => {
   } = useQuery({
     queryKey: ['slack-messages'],
     queryFn: async () => {
+      if (!integration?.merge_account_token) {
+        throw new Error('No Slack integration found');
+      }
+
       const { data, error } = await supabase.functions.invoke('fetch-slack');
       if (error) throw error;
       return data.messages as SlackMessage[];
