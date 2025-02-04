@@ -29,8 +29,17 @@ serve(async (req) => {
       'mpim:read'
     ].join(' ')
 
+    // Construct the OAuth URL
+    const redirectUri = `${req.headers.get('origin')}/oauth/callback`
+    console.log('Redirect URI:', redirectUri)
+
+    const url = `https://slack.com/oauth/v2/authorize?client_id=${clientId}&scope=${scopes}&redirect_uri=${encodeURIComponent(redirectUri)}&state=slack`
+
+    console.log('Generated Slack OAuth URL:', url)
+
     return new Response(
       JSON.stringify({
+        url,
         clientId,
         scopes,
       }),
@@ -40,6 +49,7 @@ serve(async (req) => {
       },
     )
   } catch (error) {
+    console.error('Error in get-slack-config:', error)
     return new Response(
       JSON.stringify({ error: error.message }),
       {
