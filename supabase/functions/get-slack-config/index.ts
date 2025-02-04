@@ -20,7 +20,16 @@ serve(async (req) => {
 
     if (!MERGE_API_KEY) {
       console.error('Missing MERGE_API_KEY environment variable');
-      throw new Error('Server configuration error: Missing API key');
+      return new Response(
+        JSON.stringify({
+          error: 'Server configuration error',
+          message: 'Missing API key configuration'
+        }),
+        {
+          headers: corsHeaders,
+          status: 500,
+        }
+      );
     }
 
     // Get the OAuth URL from Merge.dev
@@ -38,19 +47,59 @@ serve(async (req) => {
       }),
     });
 
-    if (!response.ok) {
-      const error = await response.text();
-      console.error('Merge.dev API error:', error);
-      throw new Error('Failed to get Slack configuration from Merge.dev');
+    const responseText = await response.text();
+    let data;
+    
+    try {
+      data = JSON.parse(responseText);
+    } catch (e) {
+      console.error('Failed to parse Merge.dev response:', responseText);
+      return new Response(
+        JSON.stringify({
+          error: 'Invalid response',
+          message: 'Received invalid response from authentication service'
+        }),
+        {
+          headers: corsHeaders,
+          status: 502,
+        }
+      );
     }
 
-    const data = await response.json();
+    if (!response.ok) {
+      console.error('Merge.dev API error:', data);
+      return new Response(
+        JSON.stringify({
+          error: 'Configuration error',
+          message: data.error || 'Failed to get Slack configuration from authentication service'
+        }),
+        {
+          headers: corsHeaders,
+          status: 400,
+        }
+      );
+    }
+
+    if (!data.link_token) {
+      console.error('No link token in response:', data);
+      return new Response(
+        JSON.stringify({
+          error: 'Invalid response',
+          message: 'No authentication URL received from service'
+        }),
+        {
+          headers: corsHeaders,
+          status: 502,
+        }
+      );
+    }
+
     console.log('Successfully got Slack configuration');
 
     return new Response(
       JSON.stringify({ url: data.link_token }),
       { 
-        headers: { ...corsHeaders },
+        headers: corsHeaders,
         status: 200,
       }
     );
@@ -60,11 +109,12 @@ serve(async (req) => {
     
     return new Response(
       JSON.stringify({
-        error: error instanceof Error ? error.message : 'Failed to get Slack configuration',
-        details: error instanceof Error ? error.stack : undefined
+        error: 'Server error',
+        message: 'An unexpected error occurred while getting Slack configuration',
+        details: error instanceof Error ? error.message : undefined
       }),
       {
-        headers: { ...corsHeaders },
+        headers: corsHeaders,
         status: 500,
       }
     );

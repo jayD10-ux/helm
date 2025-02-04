@@ -46,21 +46,31 @@ const IntegrationCard = ({
       
       if (error) {
         console.error(`${provider} OAuth config error:`, error);
-        throw new Error(`Failed to get ${provider} configuration: ${error.message}`);
+        throw new Error(error.message || `Failed to get ${provider} configuration`);
       }
 
       if (!data?.url) {
         console.error(`No OAuth URL returned for ${provider}`);
-        throw new Error('No OAuth URL returned from server');
+        throw new Error('No authentication URL received from server');
       }
 
       console.log(`Redirecting to ${provider} OAuth URL...`);
       window.location.href = data.url;
     } catch (error) {
       console.error(`${provider} connection error:`, error);
+      
+      // Get the error message from the response if available
+      let errorMessage = error instanceof Error ? error.message : `Failed to start ${title} connection`;
+      
+      // Try to extract more specific error message from Supabase error response
+      if (error && typeof error === 'object' && 'error' in error) {
+        const responseError = error as { error: { message?: string, details?: string } };
+        errorMessage = responseError.error.message || responseError.error.details || errorMessage;
+      }
+
       toast({
         title: "Connection Error",
-        description: error instanceof Error ? error.message : `Failed to start ${title} connection. Please try again.`,
+        description: errorMessage,
         variant: "destructive",
       });
     }
