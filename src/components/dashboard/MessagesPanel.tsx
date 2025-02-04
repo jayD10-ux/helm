@@ -28,24 +28,9 @@ const MessagesPanel = () => {
         <MessageCircle className="w-5 h-5 text-muted-foreground" />
       </div>
       <div className="space-y-6">
-        {hasIntegration('google') && (
-          <div>
-            <h3 className="text-lg font-medium mb-3">Gmail</h3>
-            <GmailMessages />
-          </div>
-        )}
-        {hasIntegration('slack') && (
-          <div>
-            <h3 className="text-lg font-medium mb-3">Slack</h3>
-            <SlackMessages />
-          </div>
-        )}
-        {hasIntegration('figma') && (
-          <div>
-            <h3 className="text-lg font-medium mb-3">Figma Comments</h3>
-            <FigmaComments />
-          </div>
-        )}
+        {hasIntegration('google') && <GmailMessages />}
+        {hasIntegration('slack') && <SlackMessages />}
+        {hasIntegration('figma') && <FigmaComments />}
         {!hasIntegration('google') && !hasIntegration('slack') && !hasIntegration('figma') && (
           <div className="text-center text-muted-foreground">
             <MessageCircle className="w-8 h-8 mx-auto mb-2 opacity-50" />
