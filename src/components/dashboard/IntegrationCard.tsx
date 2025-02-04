@@ -2,7 +2,6 @@ import { useState } from "react";
 import { Loader } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { RefreshCw, ExternalLink } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -16,9 +15,8 @@ interface IntegrationCardProps {
   isLoading: boolean;
   isConnected: boolean;
   hasError?: boolean;
-  webhookUrl?: string;
   templateUrl?: string;
-  onConnect: (webhookUrl: string) => void;
+  onConnect: () => void;
   onDisconnect: () => void;
 }
 
@@ -30,7 +28,6 @@ const IntegrationCard = ({
   isLoading,
   isConnected,
   hasError,
-  webhookUrl,
   templateUrl,
   onConnect,
   onDisconnect,
@@ -38,8 +35,6 @@ const IntegrationCard = ({
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [newWebhookUrl, setNewWebhookUrl] = useState("");
-  const [isEditing, setIsEditing] = useState(false);
 
   const handleRefresh = async () => {
     if (!isConnected) return;
@@ -63,19 +58,22 @@ const IntegrationCard = ({
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newWebhookUrl) {
-      toast({
-        title: "Error",
-        description: "Please enter a webhook URL",
-        variant: "destructive",
-      });
-      return;
+  const handleConnect = async () => {
+    if (provider === 'slack') {
+      // Redirect to Slack OAuth
+      const { data: { url }, error } = await supabase.functions.invoke('get-slack-config');
+      if (error) {
+        toast({
+          title: "Error",
+          description: "Failed to get Slack configuration",
+          variant: "destructive",
+        });
+        return;
+      }
+      window.location.href = url;
+    } else {
+      onConnect();
     }
-    onConnect(newWebhookUrl);
-    setIsEditing(false);
-    setNewWebhookUrl("");
   };
 
   return (
@@ -130,37 +128,13 @@ const IntegrationCard = ({
             <Button
               variant={isConnected ? "outline" : "default"}
               size="sm"
-              onClick={() => isConnected ? onDisconnect() : setIsEditing(true)}
+              onClick={() => isConnected ? onDisconnect() : handleConnect()}
               disabled={isRefreshing}
             >
               {isConnected ? "Disconnect" : "Connect"}
             </Button>
           </div>
         </div>
-
-        {isEditing && !isConnected && (
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <Input
-              type="url"
-              placeholder="Enter your Zapier webhook URL"
-              value={newWebhookUrl}
-              onChange={(e) => setNewWebhookUrl(e.target.value)}
-              className="w-full"
-            />
-            <div className="flex justify-end space-x-2">
-              <Button
-                type="button"
-                variant="ghost"
-                onClick={() => setIsEditing(false)}
-              >
-                Cancel
-              </Button>
-              <Button type="submit">
-                Save
-              </Button>
-            </div>
-          </form>
-        )}
       </div>
     </Card>
   );

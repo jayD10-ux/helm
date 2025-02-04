@@ -10,13 +10,6 @@ import GitHubPanel from "./GitHubPanel";
 import IntegrationCard from "./IntegrationCard";
 import { Session } from "@supabase/supabase-js";
 
-interface Integration {
-  id: string;
-  provider: string;
-  webhook_url: string | null;
-  template_id: string | null;
-}
-
 const MainDashboard = () => {
   const { toast } = useToast();
   const navigate = useNavigate();
@@ -66,46 +59,15 @@ const MainDashboard = () => {
   const getIntegrationStatus = (provider: string) => {
     if (isLoadingIntegrations) return "Loading...";
     const integration = integrations?.find(i => i.provider.toLowerCase() === provider.toLowerCase());
-    return integration?.webhook_url ? "Connected" : "Not Connected";
+    return integration?.access_token ? "Connected" : "Not Connected";
   };
 
-  const handleConnect = async (provider: string, webhookUrl: string) => {
-    if (!session?.user?.id) {
-      toast({
-        title: "Error",
-        description: "You must be logged in to connect integrations",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    try {
-      const { error } = await supabase
-        .from('integrations')
-        .insert([
-          {
-            provider: provider.toLowerCase(),
-            webhook_url: webhookUrl,
-            user_id: session.user.id,
-          }
-        ]);
-
-      if (error) throw error;
-
-      await queryClient.invalidateQueries({ queryKey: ['integrations'] });
-      
-      toast({
-        title: "Success",
-        description: `${provider} connected successfully`,
-      });
-    } catch (error: any) {
-      console.error('Connect error:', error);
-      toast({
-        title: "Error",
-        description: `Failed to connect ${provider}. Please try again.`,
-        variant: "destructive",
-      });
-    }
+  const handleConnect = async (provider: string) => {
+    // OAuth flow is now handled in IntegrationCard component
+    toast({
+      title: "Info",
+      description: `Redirecting to ${provider} OAuth...`,
+    });
   };
 
   const handleDisconnect = async (provider: string) => {
@@ -151,27 +113,29 @@ const MainDashboard = () => {
       title: "Gmail", 
       icon: Mail, 
       provider: "google",
-      templateUrl: "https://zapier.com/apps/gmail/integrations"
+      templateUrl: "https://www.merge.dev/docs/accounting/overview/"
     },
     { 
       title: "Slack", 
       icon: MessageSquare, 
       provider: "slack",
-      templateUrl: "https://zapier.com/apps/slack/integrations"
+      templateUrl: "https://www.merge.dev/docs/hris/overview/"
     },
     { 
       title: "GitHub", 
       icon: Github, 
       provider: "github",
-      templateUrl: "https://zapier.com/apps/github/integrations"
+      templateUrl: "https://www.merge.dev/docs/ticketing/overview/"
     },
     { 
       title: "Figma", 
       icon: Paintbrush, 
       provider: "figma",
-      templateUrl: "https://zapier.com/apps/figma/integrations"
+      templateUrl: "https://www.merge.dev/docs/ats/overview/"
     },
   ];
+
+  // ... keep existing code (render method)
 
   return (
     <div className="h-full w-full p-4 animate-fade-in">
@@ -216,7 +180,7 @@ const MainDashboard = () => {
                   isLoading={isLoadingIntegrations}
                   isConnected={isConnected}
                   templateUrl={integration.templateUrl}
-                  onConnect={(webhookUrl) => handleConnect(integration.provider, webhookUrl)}
+                  onConnect={() => handleConnect(integration.provider)}
                   onDisconnect={() => handleDisconnect(integration.provider)}
                 />
               );
